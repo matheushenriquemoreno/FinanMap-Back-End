@@ -34,5 +34,10 @@ namespace Infra.Data.Mongo.Repositorys
         {
             await _entityCollection.DeleteManyAsync(x => x.Email.Equals(email) && x.DataExpiracao < DateTime.UtcNow);
         }
+
+        public async Task DeleteExpirados()
+        {
+            await _entityCollection.DeleteManyAsync(x => x.DataExpiracao < DateTime.UtcNow);
+        }
     }
 }

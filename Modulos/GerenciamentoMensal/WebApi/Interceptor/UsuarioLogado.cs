@@ -20,7 +20,9 @@ namespace WebApi.Interceptor
         {
             get
             {
-                return usuarioRepository.GetByID(this.Id).Result;
+                var usuario = usuarioRepository.GetByID(this.Id).Result;
+
+                return usuario ?? throw new AutenticacaoNecessariaException("Para acessar essa funcionalidade e necessario autenticação!"); ;
             }
         }
 
@@ -28,22 +30,15 @@ namespace WebApi.Interceptor
         {
             get
             {
-                try
-                {
-                    var idUsuarioLogado = _httpContextAccessor
-                        .HttpContext?
-                        .User?
-                        .Claims?
-                        .Where(x => x.Type == nameof(Usuario.Id))
-                        .FirstOrDefault()
-                        ?.Value;
+                var idUsuarioLogado = _httpContextAccessor
+                    .HttpContext?
+                    .User?
+                    .Claims?
+                    .Where(x => x.Type == nameof(Usuario.Id))
+                    .FirstOrDefault()
+                    ?.Value;
 
-                    return idUsuarioLogado ?? throw new AutenticacaoNecessariaException("Para acessar essa funcionalidade e necessario autenticação!");
-                }
-                catch (Exception ex)
-                {
-                    throw;
-                }
+                return idUsuarioLogado ?? throw new AutenticacaoNecessariaException("Para acessar essa funcionalidade e necessario autenticação!");
             }
         }
     }

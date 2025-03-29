@@ -9,4 +9,5 @@ public interface ICodigoLoginRepository
     Task<CodigoLogin> GetByEmail(string Email);
     Task<CodigoLogin> GetByCodigo(string codigo);
     Task DeleteExpirados(string email);
+    Task DeleteExpirados();
 }

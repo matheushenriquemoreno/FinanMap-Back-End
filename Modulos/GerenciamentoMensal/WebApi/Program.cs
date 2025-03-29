@@ -35,8 +35,11 @@ builder.Services.AddAuthentication(
         {
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(JWTModel.SecretKey)),
+
+            // importante configurar para validar a geração.
             ValidateIssuer = false,
             ValidateAudience = false,
+            
             ValidateLifetime = true,
             RequireExpirationTime = true
         };

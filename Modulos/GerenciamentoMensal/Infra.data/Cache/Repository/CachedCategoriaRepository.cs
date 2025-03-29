@@ -2,7 +2,6 @@
 using System.Linq.Expressions;
 using Domain.Entity;
 using Domain.Enum;
-using Domain.Login.Interfaces;
 using Domain.Repository;
 using Microsoft.Extensions.Caching.Memory;
 
@@ -14,17 +13,15 @@ public class CachedCategoriaRepository : ICategoriaRepository
     private readonly IMemoryCache _memoryCache;
     private readonly MemoryCacheEntryOptions _cacheOptions;
     private static readonly ConcurrentDictionary<string, string> _cacheKeysFilterAllCategorias = new();
-    private readonly string _idUsuarioLogado;
 
-    public CachedCategoriaRepository(ICategoriaRepository repositoryDecorate, IMemoryCache memoryCache, IUsuarioLogado usuarioLogado)
+    public CachedCategoriaRepository(ICategoriaRepository repositoryDecorate, IMemoryCache memoryCache)
     {
         _repositoryDecorate = repositoryDecorate;
         _memoryCache = memoryCache;
-        _idUsuarioLogado = usuarioLogado.Id;
 
         // Configurar as opções do cache com o tempo de vida especificado
         _cacheOptions = new MemoryCacheEntryOptions()
-          .SetSlidingExpiration(TimeSpan.FromMinutes(4)) // configura o tempo de acesso do cache, caso não for acessado em 2 minutos e removido.
+          .SetSlidingExpiration(TimeSpan.FromMinutes(2)) // configura o tempo de acesso do cache, caso não for acessado em 2 minutos e removido.
           .SetAbsoluteExpiration(TimeSpan.FromMinutes(15)); // Configura o tempo que o item vai ser removido do cache
     }
 
@@ -32,7 +29,7 @@ public class CachedCategoriaRepository : ICategoriaRepository
     {
         var categoria = await _repositoryDecorate.Add(entity);
 
-        InvalidarCache();
+        InvalidarCache(usuarioCategoria: categoria.UsuarioId);
 
         return categoria;
     }
@@ -45,7 +42,7 @@ public class CachedCategoriaRepository : ICategoriaRepository
     public async Task Delete(Categoria entity)
     {
         await _repositoryDecorate.Delete(entity);
-        InvalidarCache(entity.Id);
+        InvalidarCache(entity.Id, entity.UsuarioId);
     }
 
     public async Task<Categoria> GetByID(string id)
@@ -71,7 +68,7 @@ public class CachedCategoriaRepository : ICategoriaRepository
 
         var key = $"{idUsuario}-{tipoCategoria}";
 
-        _cacheKeysFilterAllCategorias.TryAdd(_idUsuarioLogado, key);
+        _cacheKeysFilterAllCategorias.TryAdd(idUsuario, key);
 
         return await _memoryCache.GetOrCreateAsync(key, item =>
         {
@@ -88,24 +85,27 @@ public class CachedCategoriaRepository : ICategoriaRepository
     {
         var categoria = await _repositoryDecorate.Update(entity);
 
-        InvalidarCache(entity.Id);
+        InvalidarCache(entity.Id, categoria.UsuarioId);
 
         return categoria;
     }
 
-    private void InvalidarCache(string key = null)
+    private void InvalidarCache(string key = null, string usuarioCategoria = null)
     {
         try
         {
             if (key is not null)
                 _memoryCache.Remove(key);
 
-            var keysUser = _cacheKeysFilterAllCategorias.Where(x => x.Key == _idUsuarioLogado);
-
-            foreach (var item in keysUser)
+            if (usuarioCategoria is not null)
             {
-                _memoryCache.Remove(item.Value);
-                _cacheKeysFilterAllCategorias.TryRemove(item);
+                var keysUser = _cacheKeysFilterAllCategorias.Where(x => x.Key == usuarioCategoria);
+
+                foreach (var item in keysUser)
+                {
+                    _memoryCache.Remove(item.Value);
+                    _cacheKeysFilterAllCategorias.TryRemove(item);
+                }
             }
         }
         catch (Exception ex)

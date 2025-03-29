@@ -1,0 +1,28 @@
+﻿{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchUrl": "scalar/v1",
+      "launchBrowser": true,
+      "applicationUrl": "http://localhost:5200",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    "https": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchUrl": "scalar/v1",
+      "launchBrowser": true,
+      "applicationUrl": "https://localhost:7174;http://localhost:5200",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "MONGO_URL": "mongodb://teste:123456@localhost:27017",
+        "Email_SMTP": "",
+        "Password_SMTP": ""
+      }
+    }
+  }
+}

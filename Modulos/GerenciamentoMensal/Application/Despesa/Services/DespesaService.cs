@@ -42,7 +42,6 @@ public class DespesaService : IDespesaService
         return Result.Success(rendimentoDTO);
     }
 
-
     public async Task<Result<ResultDespesaDTO>> Atualizar(UpdateDespesaDTO updateDTO)
     {
         var despesa = await _repository.GetByID(updateDTO.Id);

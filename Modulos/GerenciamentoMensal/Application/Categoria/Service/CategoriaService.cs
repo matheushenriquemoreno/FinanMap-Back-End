@@ -30,14 +30,14 @@ namespace Application.Implementacoes
             return Result.Success(ResultCategoriaDTO.Mapear(categoria));
         }
 
-        public async Task<Result<ResultCategoriaDTO>> Atualizar(UpdateCategoriaDTO entity)
+        public async Task<Result<ResultCategoriaDTO>> Atualizar(UpdateCategoriaDTO categoriaDTO)
         {
-            var categoria = await _categoriaRepository.GetByID(entity.Id);
+            var categoria = await _categoriaRepository.GetByID(categoriaDTO.Id);
 
             if (categoria is null)
                 return Result.Failure<ResultCategoriaDTO>(Error.NotFound("Categoria informada não existe!"));
 
-            categoria.Nome = entity.Nome;
+            categoria.AtualizarNome(categoriaDTO.Nome);
 
             await _categoriaRepository.Update(categoria);
 

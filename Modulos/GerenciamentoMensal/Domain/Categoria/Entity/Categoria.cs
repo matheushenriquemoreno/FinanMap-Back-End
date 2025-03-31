@@ -31,4 +31,10 @@ public class Categoria : EntityBase
 
         validator.LancarExceptionSePossuiErro();
     }
+
+    public void AtualizarNome(string nome)
+    {
+        this.Nome = nome;
+        this.ValidarDados();
+    }
 }

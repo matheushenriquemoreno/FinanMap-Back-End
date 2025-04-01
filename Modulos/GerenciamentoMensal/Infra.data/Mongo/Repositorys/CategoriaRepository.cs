@@ -34,7 +34,7 @@ public class CategoriaRepository : RepositoryMongoBase<Categoria>, ICategoriaRep
     public override string GetCollectionName()
         => nameof(Categoria);
 
-    public async Task<bool> CategoriaJaFoiVinculado(Categoria Categoria)
+    public async Task<bool> CategoriaPossuiVinculo(Categoria Categoria)
     {
         switch (Categoria.Tipo)
         {

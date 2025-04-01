@@ -122,6 +122,12 @@ app.MapAcumuladoMensalEndpoints()
     .WithOpenApi()
     .RequireAuthorization();
 
+
+app.MapUsuarioEndpoints()
+    .WithTags("Usuario")
+    .WithOpenApi()
+    .RequireAuthorization();
+
 app.MapHealthChecks("/health");
 
 app.Run();

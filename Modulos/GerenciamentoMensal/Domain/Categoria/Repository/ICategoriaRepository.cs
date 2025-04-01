@@ -9,5 +9,5 @@ public interface ICategoriaRepository : IRepositoryBase<Categoria>
     IQueryable<Categoria> GetCategorias();
     bool CategoriaJaExiste(string nome, string idUsuario, TipoCategoria tipo);
     Task<List<Categoria>> GetCategorias(TipoCategoria tipoCategoria, string nome, string idUsuario);
-    Task<bool> CategoriaJaFoiVinculado(Categoria Categoria);
+    Task<bool> CategoriaPossuiVinculo(Categoria Categoria);
 }

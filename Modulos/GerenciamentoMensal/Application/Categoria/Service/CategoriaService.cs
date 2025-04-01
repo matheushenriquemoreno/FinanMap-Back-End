@@ -51,7 +51,7 @@ namespace Application.Implementacoes
             if (categoria is null)
                 return Result.Failure(Error.NotFound("Categoria informada não existe!"));
 
-            if (await _categoriaRepository.CategoriaJaFoiVinculado(categoria))
+            if (await _categoriaRepository.CategoriaPossuiVinculo(categoria))
                 return Result.Failure(Error.Validation("Categoria informada possui vinculos realizados, por favor removas e após realize a exclusão!"));
 
             await _categoriaRepository.Delete(categoria);

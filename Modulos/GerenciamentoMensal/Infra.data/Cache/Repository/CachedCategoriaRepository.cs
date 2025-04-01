@@ -114,8 +114,8 @@ public class CachedCategoriaRepository : ICategoriaRepository
         }
     }
 
-    public async Task<bool> CategoriaJaFoiVinculado(Categoria Categoria)
+    public async Task<bool> CategoriaPossuiVinculo(Categoria Categoria)
     {
-        return await _repositoryDecorate.CategoriaJaFoiVinculado(Categoria);
+        return await _repositoryDecorate.CategoriaPossuiVinculo(Categoria);
     }
 }

@@ -14,6 +14,7 @@ public class CategoriaRepository : RepositoryMongoBase<Categoria>, ICategoriaRep
     public CategoriaRepository(IMongoClient mongoClient) : base(mongoClient)
     {
     }
+
     private static FilterDefinition<Categoria> FiltrarNomeCategoriaIgnorandoCaseSensitive(string nome, FilterDefinitionBuilder<Categoria> builder)
     {
         return builder
@@ -32,6 +33,30 @@ public class CategoriaRepository : RepositoryMongoBase<Categoria>, ICategoriaRep
 
     public override string GetCollectionName()
         => nameof(Categoria);
+
+    public async Task<bool> CategoriaJaFoiVinculado(Categoria Categoria)
+    {
+        switch (Categoria.Tipo)
+        {
+            case TipoCategoria.Investimento:
+                return await CategoriaVinculadaATransacao<Investimento>(Categoria.Id);
+            case TipoCategoria.Despesa:
+                return await CategoriaVinculadaATransacao<Despesa>(Categoria.Id);
+            case TipoCategoria.Rendimento:
+                return await CategoriaVinculadaATransacao<Rendimento>(Categoria.Id);
+        }
+
+        return false;
+    }
+
+    private async Task<bool> CategoriaVinculadaATransacao<T>(string idCategoria) where T : Transacao
+    {
+        var filtro = Builders<T>.Filter.Eq(x => x.CategoriaId, idCategoria);
+
+        var result = await _mongoClient.GetCollection<T>(_database).CountDocumentsAsync(filtro);
+
+        return result > 0;
+    }
 
     public bool CategoriaJaExiste(string nome, string idUsuario, TipoCategoria tipo)
     {

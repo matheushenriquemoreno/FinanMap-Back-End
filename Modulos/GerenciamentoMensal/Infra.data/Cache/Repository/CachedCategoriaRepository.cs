@@ -113,4 +113,9 @@ public class CachedCategoriaRepository : ICategoriaRepository
             Console.WriteLine(ex.ToString());
         }
     }
+
+    public async Task<bool> CategoriaJaFoiVinculado(Categoria Categoria)
+    {
+        return await _repositoryDecorate.CategoriaJaFoiVinculado(Categoria);
+    }
 }

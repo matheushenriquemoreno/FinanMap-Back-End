@@ -9,10 +9,13 @@ namespace Infra.Data.Mongo.RepositoryBase;
 public abstract class RepositoryMongoBase<T> : IRepositoryBase<T> where T : IEntityBase
 {
     protected readonly IMongoCollection<T> _entityCollection;
+    protected readonly IMongoClient _mongoClient;
+    protected readonly string _database = MongoDBSettings.DataBaseName;
 
     public RepositoryMongoBase(IMongoClient mongoClient)
     {
-        _entityCollection = mongoClient.GetCollection<T>(MongoDBSettings.DataBaseName, this.GetCollectionName());
+        _entityCollection = mongoClient.GetCollection<T>(_database, this.GetCollectionName());
+        _mongoClient = mongoClient;
     }
 
     public abstract string GetCollectionName();

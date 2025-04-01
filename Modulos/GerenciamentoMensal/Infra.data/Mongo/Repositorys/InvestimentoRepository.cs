@@ -15,17 +15,4 @@ public class InvestimentoRepository : RepositoryTransacaoBase<Investimento>, IIn
     {
         return nameof(Investimento);
     }
-
-    public async Task<IEnumerable<Investimento>> ObterPeloMes(int mes, int ano, string usuarioId)
-    {
-        var investimentos = await _entityCollection.Find(x => x.Ano == ano && x.Mes == mes && x.UsuarioId == usuarioId)
-            .ToListAsync();
-
-        foreach (Investimento investimento in investimentos)
-        {
-            await IncluirDependencias(investimento);
-        }
-
-        return investimentos;
-    }
 }

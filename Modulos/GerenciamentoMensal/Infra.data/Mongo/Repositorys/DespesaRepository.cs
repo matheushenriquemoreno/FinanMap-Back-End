@@ -15,16 +15,4 @@ public class DespesaRepository : RepositoryTransacaoBase<Despesa>, IDespesaRepos
     {
         return nameof(Despesa);
     }
-
-    public async Task<IEnumerable<Despesa>> ObterPeloMes(int mes, int ano, string usuarioId)
-    {
-        var despesas = await _entityCollection.Find(x => x.Ano == ano && x.Mes == mes && x.UsuarioId == x.UsuarioId).ToListAsync();
-
-        foreach (var despesa in despesas)
-        {
-            await IncluirDependencias(despesa);
-        }
-
-        return despesas;
-    }
 }

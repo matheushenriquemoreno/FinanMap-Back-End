@@ -15,17 +15,5 @@ namespace Infra.Data.Mongo.Repositorys
         {
             return nameof(Rendimento);
         }
-
-        public async Task<IEnumerable<Rendimento>> ObterPeloMes(int mes, int ano, string usuarioId)
-        {
-            var rendimentos = await _entityCollection.Find(x => x.Ano == ano && x.Mes == mes && x.UsuarioId == usuarioId).ToListAsync();
-
-            foreach (var rendimento in rendimentos)
-            {
-                await IncluirDependencias(rendimento);
-            }
-
-            return rendimentos;
-        }
     }
 }

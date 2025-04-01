@@ -2,7 +2,6 @@
 
 namespace Domain.Repository;
 
-public interface IRendimentoRepository : IRepositoryBase<Rendimento>
+public interface IRendimentoRepository : IRepositoryTransacaoBase<Rendimento>
 {
-    public Task<IEnumerable<Rendimento>> ObterPeloMes(int mes, int ano, string usuarioId);
 }

@@ -62,6 +62,7 @@ public static class Despesa
             foreach (var registro in registros.IdTransacoes)
             {
                 Result result = await service.Excluir(registro);
+                resultados.Add(result);
             }
 
             return resultados.MapResult();

@@ -54,13 +54,14 @@ public static class Investimento
             return result.MapResult();
         });
 
-        group.MapPost("/DeleteMany", async (DeleteTransacoesDTO registros, IRendimentoService service) =>
+        group.MapPost("/DeleteMany", async (DeleteTransacoesDTO registros, IInvestimentoService service) =>
         {
             List<Result> resultados = new();
 
             foreach (var registro in registros.IdTransacoes)
             {
                 Result result = await service.Excluir(registro);
+                resultados.Add(result);
             }
 
             return resultados.MapResult();

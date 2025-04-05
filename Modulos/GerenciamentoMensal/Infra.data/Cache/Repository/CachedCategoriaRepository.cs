@@ -99,7 +99,9 @@ public class CachedCategoriaRepository : ICategoriaRepository
 
             if (usuarioCategoria is not null)
             {
-                var keysUser = _cacheKeysFilterAllCategorias.Where(x => x.Key == usuarioCategoria);
+                var keysUser = _cacheKeysFilterAllCategorias
+                    .Where(x => x.Key == usuarioCategoria)
+                    .ToList();
 
                 foreach (var item in keysUser)
                 {

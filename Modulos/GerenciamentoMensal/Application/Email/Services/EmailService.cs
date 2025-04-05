@@ -15,7 +15,7 @@ public class EmailService : IUsuarioEmailService
 
     public async Task<Result> EnviarEmailParaLogin(bool primeiroLogin, string email, CodigoLogin codigo)
     {
-        var assunto = primeiroLogin ? "Seja bem vindo!" : "Codigo para login";
+        var assunto = primeiroLogin ? "Seja bem vindo!" : $"Codigo de login: {codigo.Codigo}";
 
         var html = LoginHtmls.ObterHtmlLogin(codigo.Codigo);
 

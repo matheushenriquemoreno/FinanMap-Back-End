@@ -27,10 +27,12 @@ namespace Application.EventsHandler.Usuario
                 new Categoria("Transporte", TipoCategoria.Despesa, idUsuario),
                 new Categoria("Educação", TipoCategoria.Despesa, idUsuario),
                 new Categoria("Saúde", TipoCategoria.Despesa, idUsuario),
-                new Categoria("Lazer e Entretenimento", TipoCategoria.Despesa, idUsuario),
                 new Categoria("Contas e Serviços", TipoCategoria.Despesa, idUsuario),
                 new Categoria("Dívidas e Financiamentos", TipoCategoria.Despesa, idUsuario),
-                new Categoria("Doações e Presentes", TipoCategoria.Despesa, idUsuario)
+                new Categoria("Doações e Presentes", TipoCategoria.Despesa, idUsuario),
+                new Categoria("Cartão de Credito", TipoCategoria.Despesa, idUsuario),
+                new Categoria("Festas e Eventos", TipoCategoria.Despesa, idUsuario),
+                new Categoria("Lazer e Entretenimento", TipoCategoria.Despesa, idUsuario),
             };
 
             // Rendimentos
@@ -41,7 +43,7 @@ namespace Application.EventsHandler.Usuario
                 new Categoria("Renda Extra", TipoCategoria.Rendimento, idUsuario),
                 new Categoria("Dividendos", TipoCategoria.Rendimento, idUsuario),
                 new Categoria("Reembolsos", TipoCategoria.Rendimento, idUsuario),
-                new Categoria("Prêmios e Benefícios", TipoCategoria.Rendimento, idUsuario)
+                new Categoria("Benefícios", TipoCategoria.Rendimento, idUsuario),
             };
 
             // Investimentos
@@ -53,7 +55,8 @@ namespace Application.EventsHandler.Usuario
                 new Categoria("Renda Fixa", TipoCategoria.Investimento, idUsuario),
                 new Categoria("Fundos de Investimento", TipoCategoria.Investimento, idUsuario),
                 new Categoria("Previdência Privada", TipoCategoria.Investimento, idUsuario),
-                new Categoria("Outros Investimentos", TipoCategoria.Investimento, idUsuario)
+                new Categoria("Outros Investimentos", TipoCategoria.Investimento, idUsuario),
+                new Categoria("Reserva de Emergencia", TipoCategoria.Investimento, idUsuario)
             };
 
             var categorias = new List<Categoria>();

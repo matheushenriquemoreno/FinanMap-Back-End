@@ -28,8 +28,7 @@ public static class Setup
         #region Configurando estrategia de cache para categoria
 
         services.TryAddScoped<ICategoriaRepository, CategoriaRepository>();
-        
-        // services.Decorate<ICategoriaRepository, CachedCategoriaRepository>();
+        services.Decorate<ICategoriaRepository, CachedCategoriaRepository>();
 
         #endregion
 

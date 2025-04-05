@@ -53,7 +53,7 @@ public static class LoginHtmls
 </head>
 <body>
     <div class="container">
-        <h1>Bem-vindo ao FinanMap! Mapeando suas finanças, mês a mês</h1>
+        <h1>Bem-vindo ao FinanMap!</h1>
         <p>Olá, estamos felizes em tê-lo conosco! você faz parte da nossa comunidade.</p>
         <p>Seu codigo para login:</p>
         <p class="codigo">@codigo</p>

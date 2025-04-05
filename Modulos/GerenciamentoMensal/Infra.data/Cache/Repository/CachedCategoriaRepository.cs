@@ -27,10 +27,9 @@ public class CachedCategoriaRepository : ICategoriaRepository
 
     public async Task<Categoria> Add(Categoria entity)
     {
+        InvalidarCache(usuarioCategoria: entity.UsuarioId);
+
         var categoria = await _repositoryDecorate.Add(entity);
-
-        InvalidarCache(usuarioCategoria: categoria.UsuarioId);
-
         return categoria;
     }
 
@@ -41,8 +40,8 @@ public class CachedCategoriaRepository : ICategoriaRepository
 
     public async Task Delete(Categoria entity)
     {
-        await _repositoryDecorate.Delete(entity);
         InvalidarCache(entity.Id, entity.UsuarioId);
+        await _repositoryDecorate.Delete(entity);
     }
 
     public async Task<Categoria> GetByID(string id)
@@ -109,10 +108,13 @@ public class CachedCategoriaRepository : ICategoriaRepository
                     _cacheKeysFilterAllCategorias.TryRemove(item);
                 }
             }
+
+            Console.WriteLine("Cache invalidados com sucesso!");
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex.ToString());
+            Console.WriteLine("Erro ao invalidar Cache!");
+            Console.WriteLine(ex.Message);
         }
     }
 

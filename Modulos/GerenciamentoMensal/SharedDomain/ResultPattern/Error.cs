@@ -25,6 +25,9 @@ public class Error
 
     public static Error Exception(Exception ex) =>
             new Error($"{ex}, {ex.InnerException}", TypeError.Exception);
+
+    public static Error Exception(string message, Exception ex) =>
+        new Error($"{message} - {ex.Message}", TypeError.Exception);
 }
 
 public enum TypeError

@@ -2,8 +2,8 @@
 using Application.Interfaces;
 using Application.Reports.DTOs;
 using Application.Reports.Interface;
+using Domain;
 using Domain.Login.Interfaces;
-using Domain.Relatorios;
 using Domain.Relatorios.AcumuladoMensal;
 
 namespace Application.Reports.Service
@@ -39,18 +39,13 @@ namespace Application.Reports.Service
 
             if (tipoTransacao.HasValue)
             {
-                switch (tipoTransacao)
-                {
-                    case TipoTransacao.Rendimento:
-                        reportDTO.Rendimentos = await _rendimentoService.ObterRendimentoMes(mes, ano);
-                        break;
-                    case TipoTransacao.Despesa:
-                        reportDTO.Despesas = await _despesaService.ObterMesAno(mes, ano);
-                        break;
-                    case TipoTransacao.Investimento:
-                        reportDTO.Investimentos = await _investimentoService.ObterMesAno(mes, ano);
-                        break;
-                }
+                await tipoTransacao
+                    .Value
+                    .CriarBuilder()
+                    .QuandoRendimento(async () => reportDTO.Rendimentos = await _rendimentoService.ObterRendimentoMes(mes, ano))
+                    .QuandoDespesa(async () => reportDTO.Despesas = await _despesaService.ObterMesAno(mes, ano))
+                    .QuandoInvestimento(async () => reportDTO.Investimentos = await _investimentoService.ObterMesAno(mes, ano))
+                    .ExecutarAsync();
             }
 
             return reportDTO;

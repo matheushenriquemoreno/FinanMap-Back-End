@@ -1,5 +1,6 @@
 ﻿using Application.DTOs;
 using Application.Interface;
+using Application.Interfaces;
 using Application.Shared.Transacao.DTOs;
 using Microsoft.AspNetCore.Mvc;
 
@@ -51,6 +52,18 @@ public static class Investimento
             var result = await service.Excluir(id);
 
             return result.MapResult();
+        });
+
+        group.MapPost("/DeleteMany", async (DeleteTransacoesDTO registros, IRendimentoService service) =>
+        {
+            List<Result> resultados = new();
+
+            foreach (var registro in registros.IdTransacoes)
+            {
+                Result result = await service.Excluir(registro);
+            }
+
+            return resultados.MapResult();
         });
 
         return group;

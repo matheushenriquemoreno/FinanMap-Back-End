@@ -1,4 +1,6 @@
-﻿using WebApi.Configs.Models;
+﻿using System.Net;
+using Microsoft.AspNetCore.Http.HttpResults;
+using WebApi.Configs.Models;
 
 namespace WebApi;
 
@@ -13,6 +15,30 @@ public static class ResultExtensionsApi
 
         return GetErrorResult(result.Error);
     }
+
+
+    public static IResult MapResult(this List<Result> result)
+    {
+        if (result.All(x => x.IsSucess))
+        {
+            return Results.Ok();
+        }
+
+        if (result.All(x => x.IsFailure))
+        {
+            return Results.BadRequest(ApiResultError.Create(result.Select(x => x.Error.Message).ToList()));
+        }
+
+        MultiStatusResponse multiStatusResponse = new()
+        {
+            Errors = result.Select(x => x.Error.Message).ToList(),
+            QuantidadeErros = result.Count(x => x.IsFailure),
+            QuantidadeSucesso = result.Count(x => x.IsFailure)
+        };
+
+        return TypedResults.Json(multiStatusResponse, statusCode: (int)HttpStatusCode.MultiStatus);
+    }
+
 
     public static IResult MapResult<T>(this Result<T> result)
     {

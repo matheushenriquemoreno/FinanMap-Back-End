@@ -118,4 +118,14 @@ public class CachedCategoriaRepository : ICategoriaRepository
     {
         return await _repositoryDecorate.CategoriaPossuiVinculo(Categoria);
     }
+
+    public async Task<List<Categoria>> GetByID(List<string> ids)
+    {
+        return await _repositoryDecorate.GetByID(ids);
+    }
+
+    public Task<List<Categoria>> Add(List<Categoria> entity)
+    {
+        return _repositoryDecorate.Add(entity);
+    }
 }

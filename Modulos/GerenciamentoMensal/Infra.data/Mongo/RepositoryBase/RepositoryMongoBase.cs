@@ -42,4 +42,17 @@ public abstract class RepositoryMongoBase<T> : IRepositoryBase<T> where T : IEnt
     {
         return await _entityCollection.Find(filtro).ToListAsync();
     }
+
+    public async Task<List<T>> GetByID(List<string> ids)
+    {
+        var filter = Builders<T>.Filter.In(x => x.Id, ids);
+
+        return await _entityCollection.Find(filter).ToListAsync();
+    }
+
+    public async Task<List<T>> Add(List<T> entitys)
+    {
+        await _entityCollection.InsertManyAsync(entitys);
+        return entitys;
+    }
 }

@@ -55,6 +55,18 @@ public static class Despesa
             return result.MapResult();
         });
 
+        group.MapPost("/DeleteMany", async (DeleteTransacoesDTO registros, IDespesaService service) =>
+        {
+            List<Result> resultados = new();
+
+            foreach (var registro in registros.IdTransacoes)
+            {
+                Result result = await service.Excluir(registro);
+            }
+
+            return resultados.MapResult();
+        });
+
         return group;
     }
 }

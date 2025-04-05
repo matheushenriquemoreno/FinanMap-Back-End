@@ -1,4 +1,4 @@
-﻿namespace Domain.Relatorios;
+﻿namespace Domain;
 
 public enum TipoTransacao
 {

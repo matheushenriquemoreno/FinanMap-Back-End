@@ -1,5 +1,5 @@
 ﻿using Application.Reports.DTOs;
-using Domain.Relatorios;
+using Domain;
 
 namespace Application.Reports.Interface
 {

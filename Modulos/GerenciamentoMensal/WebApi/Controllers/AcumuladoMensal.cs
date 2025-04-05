@@ -1,6 +1,6 @@
 ﻿using Application.Reports.DTOs;
 using Application.Reports.Interface;
-using Domain.Relatorios;
+using Domain;
 using Microsoft.AspNetCore.Mvc;
 
 namespace WebApi.Controllers

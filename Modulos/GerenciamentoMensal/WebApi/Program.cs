@@ -128,6 +128,12 @@ app.MapUsuarioEndpoints()
     .WithOpenApi()
     .RequireAuthorization();
 
+
+app.MapReplicarTransacaoEndpoints()
+    .WithTags("ReplicarTranscao")
+    .WithOpenApi()
+    .RequireAuthorization();
+
 app.MapHealthChecks("/health");
 
 app.Run();

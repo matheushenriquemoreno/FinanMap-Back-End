@@ -13,6 +13,12 @@ public class ApiResultError
     {
         Errors.AddRange(erros);
     }
+
+    public ApiResultError()
+    {
+        
+    }
+
     public void AddErro(string message)
     {
         Errors.Add(message);

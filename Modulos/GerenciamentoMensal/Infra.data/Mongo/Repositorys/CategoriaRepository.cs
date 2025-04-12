@@ -85,8 +85,6 @@ public class CategoriaRepository : RepositoryMongoBase<Categoria>, ICategoriaRep
             resultFilter = builder.And(resultFilter, filtroNome);
         }
 
-        var results = await _entityCollection.FindAsync(resultFilter);
-
-        return results.ToList();
+        return await _entityCollection.Find(resultFilter).ToListAsync();
     }
 }

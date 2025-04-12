@@ -33,6 +33,7 @@ namespace Application.EventsHandler.Usuario
                 new Categoria("Cartão de Credito", TipoCategoria.Despesa, idUsuario),
                 new Categoria("Festas e Eventos", TipoCategoria.Despesa, idUsuario),
                 new Categoria("Lazer e Entretenimento", TipoCategoria.Despesa, idUsuario),
+                new Categoria("Serviços de streaming", TipoCategoria.Despesa, idUsuario),
             };
 
             // Rendimentos

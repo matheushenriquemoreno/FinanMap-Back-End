@@ -16,7 +16,17 @@ public abstract class RepositoryTransacaoBase<T> : RepositoryMongoBase<T>, IRepo
 
     public async Task<IEnumerable<T>> ObterPeloMes(int mes, int ano, string usuarioId)
     {
-        var transacoes = await _entityCollection.Find(x => x.Ano == ano && x.Mes == mes && x.UsuarioId == usuarioId).ToListAsync();
+        var filterDefinition = Builders<T>.Filter;
+
+        var filter = filterDefinition.And(
+            filterDefinition.Eq(x => x.Mes, mes),
+            filterDefinition.Eq(x => x.Ano, ano),
+            filterDefinition.Eq(x => x.UsuarioId, usuarioId)
+            );
+
+        var transacoes = await _entityCollection.Find(filter)
+            .SortByDescending(x => x.Valor)
+            .ToListAsync();
 
         foreach (var despesa in transacoes)
         {

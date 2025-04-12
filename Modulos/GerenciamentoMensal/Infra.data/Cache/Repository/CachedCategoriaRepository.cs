@@ -21,7 +21,7 @@ public class CachedCategoriaRepository : ICategoriaRepository
 
         // Configurar as opções do cache com o tempo de vida especificado
         _cacheOptions = new MemoryCacheEntryOptions()
-          .SetSlidingExpiration(TimeSpan.FromMinutes(2)) // configura o tempo de acesso do cache, caso não for acessado em 2 minutos e removido.
+          .SetSlidingExpiration(TimeSpan.FromMinutes(3)) // configura o tempo de acesso do cache, caso não for acessado em 3 minutos e removido.
           .SetAbsoluteExpiration(TimeSpan.FromMinutes(15)); // Configura o tempo que o item vai ser removido do cache
     }
 
@@ -82,10 +82,8 @@ public class CachedCategoriaRepository : ICategoriaRepository
 
     public async Task<Categoria> Update(Categoria entity)
     {
+        InvalidarCache(entity.Id, entity.UsuarioId);
         var categoria = await _repositoryDecorate.Update(entity);
-
-        InvalidarCache(entity.Id, categoria.UsuarioId);
-
         return categoria;
     }
 

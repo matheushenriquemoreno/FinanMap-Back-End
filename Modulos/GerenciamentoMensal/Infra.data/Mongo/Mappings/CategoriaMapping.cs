@@ -29,7 +29,7 @@ public class CategoriaMapping : IMongoMapping
         var indexKeysDefinition = Builders<Categoria>.IndexKeys
              .Ascending(x => x.Tipo)
              .Ascending(x => x.UsuarioId)
-                .Ascending(x => x.Nome);
+             .Ascending(x => x.Nome);
 
         var createIndexOptions = new CreateIndexOptions { Background = true };
 

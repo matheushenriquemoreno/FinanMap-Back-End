@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using WebApi.Configs.Models;
 
-namespace WebApi.Configs
+namespace WebApi.Configs.ExecptionHandler
 {
     public class DomainExceptionHandler : IExceptionHandler
     {

@@ -2,7 +2,7 @@
 
 public static class JWTModel
 {
-    public static string SecretKey = "32XgYWFkMjMtNGY4Yy05M2E2LWIxZjQtZjRiMzVjMjEwYzU5==32XgYWFkMjMtNGY4Yy05M2E2LWIxZjQtZjRiMzVjMjEwYzU532XgYWFkMjMtNGY4Yy05M2E2LWIxZjQtZjRiMzVjMjEwYzU532XgYWFkMjMtNGY4Yy05M2E2LWIxZjQtZjRiMzVjMjEwYzU5";
-    public static string Issuer = "https://localhost:7171/";
-    public static string Audience = "seu_audience_aqui";
+    public static string SecretKey = Environment.GetEnvironmentVariable("JWT_KEY") ?? throw new Exception("Configurações JWT faltantes");
+    public static string Issuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? throw new Exception("Configurações JWT faltantes");
+    public static string Audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? throw new Exception("Configurações JWT faltantes");
 }

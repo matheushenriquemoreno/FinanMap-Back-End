@@ -10,41 +10,47 @@ public static class MongoConfig
 {
     private static void MappingAllClassMongo(this IServiceCollection services, IMongoClient mongoClient)
     {
-        try
+        Task.Run(() =>
         {
-            var assembly = Assembly.GetExecutingAssembly();
-
-            #region Mapeamento de entidades Bases
-
-            var classesMapeadoras = assembly.GetTypes()
-                .Where(t => typeof(IMongoMappingClassBase).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
-                .ToList();
-
-            foreach (var mapping in classesMapeadoras)
+            try
             {
-                var instancia = Activator.CreateInstance(mapping) as IMongoMappingClassBase;
-                instancia?.RegisterMap(mongoClient);
+                var assembly = Assembly.GetExecutingAssembly();
+
+                #region Mapeamento de entidades Bases
+
+                var classesMapeadoras = assembly.GetTypes()
+                    .Where(t => typeof(IMongoMappingClassBase).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
+                    .ToList();
+
+                foreach (var mapping in classesMapeadoras)
+                {
+                    var instancia = Activator.CreateInstance(mapping) as IMongoMappingClassBase;
+                    instancia?.RegisterMap(mongoClient);
+                }
+
+                #endregion
+
+                classesMapeadoras = assembly.GetTypes()
+                    .Where(t => typeof(IMongoMapping).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
+                    .ToList();
+
+
+                foreach (var mapping in classesMapeadoras)
+                {
+                    var instancia = Activator.CreateInstance(mapping) as IMongoMapping;
+                    instancia?.RegisterMap(mongoClient);
+                }
             }
-
-            #endregion
-
-            classesMapeadoras = assembly.GetTypes()
-                .Where(t => typeof(IMongoMapping).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
-                .ToList();
-
-
-            foreach (var mapping in classesMapeadoras)
+            catch (Exception ex)
             {
-                var instancia = Activator.CreateInstance(mapping) as IMongoMapping;
-                instancia?.RegisterMap(mongoClient);
+                Console.WriteLine("Ocorreu um erro ao registrar as classes, indexs, e configurações do Mongo DB.");
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.InnerException?.Message);
             }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine("Ocorreu um erro ao registrar as classes, indexs, e configurações do Mongo DB.");
-            Console.WriteLine(ex.Message);
-            Console.WriteLine(ex.InnerException?.Message);
-        }
+        });
+
+
+
     }
 
     public static void ConfiguarMongoDB(this IServiceCollection services)

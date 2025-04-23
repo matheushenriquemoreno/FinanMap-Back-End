@@ -21,7 +21,10 @@
         "ASPNETCORE_ENVIRONMENT": "Development",
         "MONGO_URL": "mongodb://teste:123456@localhost:27017",
         "Email_SMTP": "",
-        "Password_SMTP": ""
+        "Password_SMTP": "",
+        "JWT_KEY": "",
+        "JWT_ISSUER": "https://localhost:7174",
+        "JWT_AUDIENCE": "minha-api-local"
       }
     }
   }

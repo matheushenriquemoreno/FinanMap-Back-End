@@ -4,10 +4,9 @@ using Domain.Login.Interfaces;
 using Infra;
 using Infra.Autenticacao;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.Logging.Console;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
-using WebApi.Configs;
+using WebApi.Configs.ExecptionHandler;
 using WebApi.Controllers;
 using WebApi.Controlles;
 using WebApi.Interceptor;
@@ -36,12 +35,25 @@ builder.Services.AddAuthentication(
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(JWTModel.SecretKey)),
 
-            // importante configurar para validar a geração.
-            ValidateIssuer = false,
-            ValidateAudience = false,
-            
+            ValidateIssuer = true, 
+            ValidIssuer = JWTModel.Issuer,  
+
+            ValidateAudience = true, 
+            ValidAudience = JWTModel.Audience, 
+
             ValidateLifetime = true,
-            RequireExpirationTime = true
+            RequireExpirationTime = true,
+            ClockSkew = TimeSpan.Zero 
+   
+        };
+        // logins de validação de token
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = context =>
+            {
+                Console.WriteLine("Token validado com sucesso, valido ate: " + context.SecurityToken.ValidTo);
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -67,10 +79,13 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(builder =>
     {
         builder
-        .WithOrigins("http://localhost:9000", "http://192.168.100.3:9070")
+        .WithOrigins(
+            "http://localhost:9000", 
+                    "http://192.168.100.3:9070")
         .AllowCredentials()
         .AllowAnyHeader()
-        .AllowAnyMethod();
+        .AllowAnyMethod()
+        .SetPreflightMaxAge(TimeSpan.FromMinutes(10));
     });
 });
 

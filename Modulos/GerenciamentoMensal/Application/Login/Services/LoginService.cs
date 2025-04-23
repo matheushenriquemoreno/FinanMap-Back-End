@@ -70,7 +70,7 @@ public class LoginService : ILoginService
             {
                 var usuario = await _usuarioRepository.GetByEmail(codigoLogin.Email);
                 var tokenAcess = _serviceJWT.CriarToken(usuario);
-                var result = new ResultLoginDTO(tokenAcess);
+                var result = new ResultLoginDTO(tokenAcess, usuario.Nome);
                 await _codigoLoginRepository.Delete(codigoLogin);
                 return Result.Success(result);
             }

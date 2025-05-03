@@ -38,7 +38,7 @@ public abstract class Transacao : EntityBase
         this.ValidarDados();
     }
 
-    public void Atualizar(decimal valor)
+    public void AtualizarValor(decimal valor)
     {
         Valor = valor;
         this.ValidarDados();

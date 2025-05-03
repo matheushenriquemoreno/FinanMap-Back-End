@@ -7,13 +7,13 @@ using MongoDB.Driver.Linq;
 
 namespace Infra.Data.Mongo.Repositorys
 {
-    public class RepositoryAcumuladoMensal : IAcumuladoMensalReportRepository
+    public class AcumuladoMensalRepository : IAcumuladoMensalReportRepository
     {
         protected readonly IMongoCollection<Rendimento> _rendimentoCollection;
         protected readonly IMongoCollection<Despesa> _despesaCollection;
         protected readonly IMongoCollection<Investimento> _investimentoCollection;
 
-        public RepositoryAcumuladoMensal(IMongoClient mongoClient)
+        public AcumuladoMensalRepository(IMongoClient mongoClient)
         {
             var mongoDatabase = mongoClient.GetDatabase(MongoDBSettings.DataBaseName);
             _rendimentoCollection = mongoDatabase.GetCollection<Rendimento>(nameof(Rendimento));
@@ -24,7 +24,11 @@ namespace Infra.Data.Mongo.Repositorys
         public async Task<AcumuladoMensalReport> Obter(int mes, int ano, string idUsuario)
         {
             var totalrendimento = ObterValorMes(mes, ano, idUsuario, _rendimentoCollection);
-            var totalDespesa = ObterValorMes(mes, ano, idUsuario, _despesaCollection);
+
+            var filtroDespesa = new List<FilterDefinition<Despesa>>();
+            filtroDespesa.Add(Builders<Despesa>.Filter.Eq(x => x.IdDespesaAgrupadora, null));
+            var totalDespesa = ObterValorMes(mes, ano, idUsuario, _despesaCollection, filtroDespesa);
+            
             var totalInvestimento = ObterValorMes(mes, ano, idUsuario, _investimentoCollection);
 
             await Task.WhenAll(totalrendimento, totalDespesa, totalInvestimento);
@@ -32,9 +36,17 @@ namespace Infra.Data.Mongo.Repositorys
             return new AcumuladoMensalReport(ano, mes, await totalrendimento, await totalInvestimento, await totalDespesa);
         }
 
-        private async Task<decimal> ObterValorMes<T>(int mes, int ano, string idUsuario, IMongoCollection<T> mongoCollection) where T : Transacao
+        private async Task<decimal> ObterValorMes<T>(int mes, int ano, string idUsuario, IMongoCollection<T> mongoCollection, List<FilterDefinition<T>> filtrosAdicionais = null) where T : Transacao
         {
             FilterDefinition<T> filter = FiltrosMesAno<T>(mes, ano, idUsuario);
+
+            if (filtrosAdicionais != null && filtrosAdicionais.Any())
+            {
+                foreach (var filtro in filtrosAdicionais)
+                {
+                    filter = Builders<T>.Filter.And(filter, filtro);
+                }
+            }
 
             var pipelineExecutionMongo = new EmptyPipelineDefinition<T>()
                         .Match(filter)

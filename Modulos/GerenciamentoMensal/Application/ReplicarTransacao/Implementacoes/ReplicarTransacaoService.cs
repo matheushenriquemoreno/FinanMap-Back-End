@@ -60,7 +60,7 @@ namespace Application.ReplicarTransacao.Implementacoes
 
         public async Task ReplicarTranscaoDespesa(ReplicarRegistros periodo)
         {
-            await ReplicarBase(despesaRepository, periodo);
+            await ReplicarDespesa(despesaRepository, periodo);
         }
 
         public async Task ReplicarTranscaoInvestimento(ReplicarRegistros periodo)
@@ -92,10 +92,18 @@ namespace Application.ReplicarTransacao.Implementacoes
                     var registrosIguais = await repository
                                     .GetWhere(x => x.Ano == clone.Ano
                                         && x.Mes == clone.Mes
-                                        && x.Descricao == clone.Descricao);
+                                        && x.Descricao == clone.Descricao
+                                        && x.CategoriaId == clone.CategoriaId);
 
-                    if (registrosIguais.Count() > 0)
+                    var registroJaCadastrado = registrosIguais.FirstOrDefault();
+
+                    if (registroJaCadastrado is not null)
+                    {
+                        registroJaCadastrado.Valor = clone.Valor;
+
+                        await repository.Update(registroJaCadastrado);
                         continue;
+                    }
 
                     novosRegistros.Add(clone);
                 }
@@ -106,5 +114,69 @@ namespace Application.ReplicarTransacao.Implementacoes
                 periodoInicial = periodoInicial.AddMonths(1);
             }
         }
+
+        private async Task ReplicarDespesa(IDespesaRepository repository, ReplicarRegistros periodo)
+        {
+            List<Despesa> despesas = await repository.GetByID(periodo.IdRegistros);
+
+            if (despesas.Count == 0)
+                throw new Exception("Não foi encontrados registros");
+
+            var periodoInicial = new DateTime(periodo.PeriodoInicial.Year, periodo.PeriodoInicial.Month, 1);
+            var periodoFinal = new DateTime(periodo.PeriodoFinal.Year, periodo.PeriodoFinal.Month, 1);
+
+            while (periodoInicial <= periodoFinal)
+            {
+                var novosRegistros = new List<Despesa>();
+
+                foreach (var despesa in despesas)
+                {
+                    var clone = despesa.Clone();
+
+                    clone.Ano = periodoInicial.Year;
+                    clone.Mes = periodoInicial.Month;
+
+                    var registroIgualNoMes = await repository
+                                    .GetWhere(x => x.Ano == clone.Ano
+                                        && x.Mes == clone.Mes
+                                        && x.Descricao == clone.Descricao
+                                        && x.CategoriaId == clone.CategoriaId);
+
+                    var registroCadastrado = registroIgualNoMes.FirstOrDefault();
+
+                    if (registroCadastrado is not null)
+                    {
+                        registroCadastrado.Valor = clone.Valor;
+                        await repository.Update(registroCadastrado);
+                        continue;
+                    }
+
+                    clone = await repository.Add(clone);
+
+                    if (despesa.DespesaAgrupadora.HasValue && despesa.DespesaAgrupadora.Value)
+                    {
+                        var despesasAgrupadas = await repository.ObterDespesasDaAgrupadora(despesa.Id);
+
+                        var clonesAgrupadora = despesasAgrupadas.Select(x =>
+                        {
+                            var cloneAgrupada = x.Clone();
+
+                            cloneAgrupada.Ano = periodoInicial.Year;
+                            cloneAgrupada.Mes = periodoInicial.Month;
+                            cloneAgrupada.IdDespesaAgrupadora = clone.Id;
+
+                            return cloneAgrupada;
+                        }).ToList();
+
+                        if (clonesAgrupadora.Count > 0)
+                            await repository.Add(clonesAgrupadora);
+
+                    }
+                }
+
+                periodoInicial = periodoInicial.AddMonths(1);
+            }
+        }
+
     }
 }

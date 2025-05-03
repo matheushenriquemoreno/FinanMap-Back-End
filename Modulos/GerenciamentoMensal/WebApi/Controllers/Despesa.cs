@@ -19,9 +19,16 @@ public static class Despesa
             return result.MapResult();
         });
 
-        group.MapGet("/", async ([FromQuery] int mes, [FromQuery] int ano, IDespesaService service) =>
+        group.MapGet("/", async ([FromQuery] int mes, [FromQuery] int ano, [FromQuery] string descricao, IDespesaService service) =>
         {
-            var result = await service.ObterMesAno(mes, ano);
+            var result = await service.ObterMesAno(mes, ano, descricao);
+
+            return Results.Ok(result);
+        });
+
+        group.MapGet("/agrupada/{id:length(24)}", async (string id, IDespesaService service) =>
+        {
+            var result = await service.ObterDespesasDaAgrupadora(id);
 
             return Results.Ok(result);
         });

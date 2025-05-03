@@ -13,6 +13,7 @@ internal class DespesaMapping : IMongoMapping
         BsonClassMap.TryRegisterClassMap<Despesa>(cm =>
         {
             cm.AutoMap();
+            cm.SetIgnoreExtraElements(true);
         });
 
         var mongoDatabase = mongoClient.GetDatabase(MongoDBSettings.DataBaseName);

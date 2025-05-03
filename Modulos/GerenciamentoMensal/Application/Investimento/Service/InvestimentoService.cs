@@ -99,7 +99,7 @@ public class InvestimentoService : IInvestimentoService
         if (investimento == null)
             return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Investimento informado não existe!"));
 
-        investimento.Atualizar(updateValorTransacaoDTO.Valor);
+        investimento.AtualizarValor(updateValorTransacaoDTO.Valor);
 
         await _investimentoRepository.Update(investimento);
 

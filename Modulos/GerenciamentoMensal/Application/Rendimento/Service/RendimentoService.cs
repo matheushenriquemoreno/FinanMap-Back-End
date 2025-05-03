@@ -103,7 +103,7 @@ public class RendimentoService : IRendimentoService
         if (rendimento == null)
             return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Rendimento informado não existe!"));
 
-        rendimento.Atualizar(updateValorTransacaoDTO.Valor);
+        rendimento.AtualizarValor(updateValorTransacaoDTO.Valor);
 
         await _rendimentoRepository.Update(rendimento);
 

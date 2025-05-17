@@ -79,9 +79,7 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(builder =>
     {
         builder
-        .WithOrigins(
-            "http://localhost:9000", 
-                    "http://192.168.100.3:9070")
+        .WithOrigins(Environment.GetEnvironmentVariable("FRONT_END_URLS").Split("&"))
         .AllowCredentials()
         .AllowAnyHeader()
         .AllowAnyMethod()

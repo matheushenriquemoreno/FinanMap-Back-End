@@ -25,6 +25,7 @@
         "JWT_KEY": "",
         "JWT_ISSUER": "https://localhost:7174",
         "JWT_AUDIENCE": "minha-api-local"
+        "FRONT_END_URLS": "http://192.168.100.3:9070&http://localhost:9000&https://bespoke-douhua-50024f.netlify.app"
       }
     }
   }

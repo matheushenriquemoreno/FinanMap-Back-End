@@ -3,6 +3,8 @@
 public class ApiResultError
 {
     public List<string> Errors { get; set; } = new List<string>();
+    public ApiResultError()
+    { }
 
     protected ApiResultError(string message)
     {
@@ -12,11 +14,6 @@ public class ApiResultError
     protected ApiResultError(List<string> erros)
     {
         Errors.AddRange(erros);
-    }
-
-    public ApiResultError()
-    {
-        
     }
 
     public void AddErro(string message)

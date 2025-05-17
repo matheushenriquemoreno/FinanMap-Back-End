@@ -2,6 +2,6 @@
 
 internal class MongoDBSettings
 {
-    public static string ConnectionString => Environment.GetEnvironmentVariable("MONGO_URL");
+    public static string ConnectionString => "MONGO_URL".GetEnvironmentVariableOrThrow();
     public static string DataBaseName => "FinanMap";
 }

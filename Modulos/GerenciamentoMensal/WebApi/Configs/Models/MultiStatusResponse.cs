@@ -6,16 +6,14 @@ public class MultiStatusResponse : ApiResultError
     public int QuantidadeErros { get; set; }
 
     public MultiStatusResponse()
-    {
-        
-    }
+    {}
+
     protected MultiStatusResponse(string message) : base(message)
-    {
-    }
+    {}
 
     protected MultiStatusResponse(List<string> message) : base(message)
-    {
-    }
+    {}
+
     protected MultiStatusResponse(List<string> message, int quantidadeSucesso, int quantidadeErros) : base(message)
     {
         QuantidadeSucesso = quantidadeSucesso;

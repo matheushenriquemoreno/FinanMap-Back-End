@@ -4,9 +4,5 @@ namespace Application.DTOs;
 
 public class UpdateDespesaDTO : UpdateTransacaoDTO
 {
-    public string IdDespesaAgrupadora
-    {
-        get; set;
-    }
-
+    public string IdDespesaAgrupadora { get; set; }
 }

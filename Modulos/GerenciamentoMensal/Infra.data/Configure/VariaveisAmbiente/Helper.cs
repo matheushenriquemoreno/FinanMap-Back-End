@@ -10,7 +10,4 @@ public static class Helper
 
         return value;
     }
-
-
-
 }

@@ -22,7 +22,8 @@ public class DespesaRepository : RepositoryTransacaoBase<Despesa>, IDespesaRepos
         var filtros = new List<FilterDefinition<Despesa>>();
         var filterDefinition = Builders<Despesa>.Filter;
 
-        if (!string.IsNullOrEmpty(descricao)){
+        if (!string.IsNullOrEmpty(descricao))
+        {
 
             var filtro = filterDefinition.Regex(x => x.Descricao, new BsonRegularExpression(descricao, "i"));
             filtros.Add(filtro);
@@ -49,5 +50,15 @@ public class DespesaRepository : RepositoryTransacaoBase<Despesa>, IDespesaRepos
         }
 
         return despesas;
+    }
+
+    protected override async Task IncluirDependencias(Despesa despesa)
+    {
+        await base.IncluirDependencias(despesa);
+
+        if (despesa.EstaAgrupada())
+        {
+            despesa.Agrupadora = await GetByID(despesa.IdDespesaAgrupadora);
+        }
     }
 }

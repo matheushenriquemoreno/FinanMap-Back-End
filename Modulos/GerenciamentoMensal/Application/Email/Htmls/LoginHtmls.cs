@@ -36,12 +36,17 @@ public static class LoginHtmls
         .codigo {
             display: inline-block;
             padding: 11px 20px;
-            margin-top: 20px;
             color: #fff;
             background-color: #007bff;
             text-decoration: none;
             border-radius: 5px;
             font-size: 18px;
+        }
+
+        .expiracao {
+            margin-top: 5px;
+            font-size: 12px;
+            color: #000000;
         }
 
         .footer {
@@ -56,15 +61,22 @@ public static class LoginHtmls
         <h1>Bem-vindo ao FinanMap!</h1>
         <p>Olá, estamos felizes em tê-lo conosco! você faz parte da nossa comunidade.</p>
         <p>Seu codigo para login:</p>
-        <p class="codigo">@codigo</p>
+
+        <div style="display: flex; flex-direction: column; justify-content: center; align-items: center;">
+            <span class="codigo">@codigo</span>
+            <span class="expiracao" >(Esse código expirará em @expiracao minutos após o envio.)</span>
+        </div>
+
         <p class="footer">Se você não solicitou o login, ignore este e-mail.</p>
     </div>
 </body>
 </html>
 """);
 
-    public static string ObterHtmlLogin(string codigo)
+    public static string ObterHtmlLogin(string codigo, int minutosExpiracao)
     {
-        return builderHtmlLogin.ToString().Replace("@codigo", codigo);
+        return builderHtmlLogin.ToString()
+            .Replace("@codigo", codigo)
+            .Replace("@expiracao", minutosExpiracao.ToString());
     }
 }

@@ -17,7 +17,7 @@ public class EmailService : IUsuarioEmailService
     {
         var assunto = primeiroLogin ? "Seja bem vindo!" : $"Codigo de login: {codigo.Codigo}";
 
-        var html = LoginHtmls.ObterHtmlLogin(codigo.Codigo);
+        var html = LoginHtmls.ObterHtmlLogin(codigo.Codigo, codigo.MinutosExpiracao);
 
         return await _provedorEmail.EnviarEmail(assunto, html, email);
     }

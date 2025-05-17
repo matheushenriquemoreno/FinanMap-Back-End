@@ -70,44 +70,80 @@ public class DespesaService : IDespesaService
             var valorAgrupamento = await _repository.ObterValorTotalDespesasDaAgrupadora(despesa.Id);
 
             if (valorAgrupamento > updateDTO.Valor)
-                updateDTO.Valor = valorAgrupamento;
+                return Result.Failure<ResultDespesaDTO>(Error.Validation($"Valor informado menor que o total das despesas agrupadas, valor total: {valorAgrupamento}"));
         }
 
         despesa.Descricao = updateDTO.Descricao;
-        despesa.Valor = updateDTO.Valor;
+        despesa.AtualizarValor(updateDTO.Valor);
         despesa.PreencherCategoria(categoria);
 
-        if (despesa.EstaAgrupada() &&
-            updateDTO.IdDespesaAgrupadora.PossuiValor() == false)
-        {
-            await DesvincularDespesaDaAgrupadora(despesa.IdDespesaAgrupadora, despesa);
-        }
-        else if (updateDTO.IdDespesaAgrupadora.PossuiValor() &&
-                despesa.EstaAgrupada() == false)
-        {
-            var result = await VincularDespesaAUmaAgrupadora(updateDTO.IdDespesaAgrupadora, despesa);
-
-            if (result.IsFailure)
-                return Result.Failure<ResultDespesaDTO>(result.Error);
-        }
-        else if (updateDTO.IdDespesaAgrupadora.PossuiValor() && 
-                despesa.IdDespesaAgrupadora != updateDTO.IdDespesaAgrupadora)
-        {
-            await DesvincularDespesaDaAgrupadora(despesa.IdDespesaAgrupadora, despesa);
-
-            var result = await VincularDespesaAUmaAgrupadora(updateDTO.IdDespesaAgrupadora, despesa);
-
-            if (result.IsFailure)
-                return Result.Failure<ResultDespesaDTO>(result.Error);
-        }
+        await AtualizarAgrupamento(despesa, updateDTO);
 
         await _repository.Update(despesa);
+
+        await AtualizarDespesaAgrupadoraCasoNecessario(despesa);
 
         var reportAcumulado = await _acumuladoMensalReportRepository.Obter(despesa.Mes, despesa.Ano, _usuarioLogado.Id);
 
         ResultDespesaDTO rendimentoDTO = ObterDespesaDTO(despesa, reportAcumulado);
 
         return Result.Success(rendimentoDTO);
+    }
+
+    private async Task AtualizarDespesaAgrupadoraCasoNecessario(Despesa despesa)
+    {
+        if (despesa.EstaAgrupada())
+        {
+            var despesaAgrupadora = await _repository.GetByID(despesa.IdDespesaAgrupadora);
+
+            var valorAgrupamento = await _repository.ObterValorTotalDespesasDaAgrupadora(despesa.IdDespesaAgrupadora);
+
+            if (despesaAgrupadora.Valor < valorAgrupamento)
+            {
+                despesaAgrupadora.Valor = valorAgrupamento;
+
+                await _repository.Update(despesaAgrupadora);
+            }
+        }
+    }
+
+    private async Task<Result> AtualizarAgrupamento(Despesa despesa, UpdateDespesaDTO updateDTO)
+    {
+        // Cenario de remover vinculo com a despesa agrupadora
+        if (despesa.EstaAgrupada() &&
+            updateDTO.IdDespesaAgrupadora.PossuiValor() == false)
+        {
+            await DesvincularDespesaDaAgrupadora(despesa, despesa.IdDespesaAgrupadora);
+            return Result.Success();
+        }
+
+        // cenario de agrupamento após a criação da despesa
+        if (updateDTO.IdDespesaAgrupadora.PossuiValor() &&
+                despesa.EstaAgrupada() == false)
+        {
+            var result = await VincularDespesaAUmaAgrupadora(updateDTO.IdDespesaAgrupadora, despesa);
+
+            if (result.IsFailure)
+                return Result.Failure(result.Error);
+
+            return Result.Success();
+        }
+
+        // cenario de troca de agrupamento, era de uma despesa foi para outra.
+        if (updateDTO.IdDespesaAgrupadora.PossuiValor() &&
+                despesa.IdDespesaAgrupadora != updateDTO.IdDespesaAgrupadora)
+        {
+            await DesvincularDespesaDaAgrupadora(despesa, despesa.IdDespesaAgrupadora);
+
+            var result = await VincularDespesaAUmaAgrupadora(updateDTO.IdDespesaAgrupadora, despesa);
+
+            if (result.IsFailure)
+                return Result.Failure(result.Error);
+
+            return result;
+        }
+
+        return Result.Success();
     }
 
     public async Task<Result> Excluir(string id)
@@ -120,7 +156,7 @@ public class DespesaService : IDespesaService
         if (despesa.EstaAgrupada())
         {
             var despesaAgrupadora = await _repository.GetByID(despesa.IdDespesaAgrupadora);
-            await AtualizarAgrupadoraAoRemoverVinculo(despesaAgrupadora);
+            await RemoverVinculoAgrupadoraEhAtualizar(despesaAgrupadora, despesa);
         }
 
         await _repository.Delete(despesa);
@@ -158,10 +194,20 @@ public class DespesaService : IDespesaService
 
         if (despesa == null)
             return Result.Failure<ResultDespesaDTO>(Error.NotFound("Despesa informado não existe!"));
+        
+        if (despesa.EhAgrupadora())
+        {
+            var valorAgrupamento = await _repository.ObterValorTotalDespesasDaAgrupadora(despesa.Id);
+
+            if (valorAgrupamento > updateValorTransacaoDTO.Valor)
+                return Result.Failure<ResultDespesaDTO>(Error.Validation($"Valor informado menor que o total das despesas agrupadas, valor total: {valorAgrupamento}"));
+        }
 
         despesa.AtualizarValor(updateValorTransacaoDTO.Valor);
 
         await _repository.Update(despesa);
+
+        await AtualizarDespesaAgrupadoraCasoNecessario(despesa);
 
         var reportAcumulado = await _acumuladoMensalReportRepository.Obter(despesa.Mes, despesa.Ano, _usuarioLogado.Id);
 
@@ -180,7 +226,9 @@ public class DespesaService : IDespesaService
             Descricao = despesa.Descricao,
             Valor = despesa.Valor,
             ReportAcumulado = reportAcumulado,
-            EhDespesaAgrupadora = despesa.DespesaAgrupadora
+            EhDespesaAgrupadora = despesa.DespesaAgrupadora,
+            IdDespesaAgrupadora = despesa.IdDespesaAgrupadora,
+            Agrupadora = despesa.Agrupadora is not null ? ObterDespesaDTO(despesa.Agrupadora) : null,
         };
 
         return result;
@@ -196,26 +244,8 @@ public class DespesaService : IDespesaService
         despesa.AdicionarDespesaAgrupadora(despesaAgrupadora);
         despesaAgrupadora.MarcarDespesaComoAgrupadora();
 
-        await AtualizarValorAgrupadora(despesa, despesaAgrupadora);
-
-        await _repository.Update(despesaAgrupadora);
-
-        return Result.Success();
-    }
-
-
-    private async Task DesvincularDespesaDaAgrupadora(string idDespesaAgrupadora, Despesa despesa)
-    {
-        var despesaAgrupadora = await _repository.GetByID(idDespesaAgrupadora);
-
-        despesa.RemoverDespesaAgrupadora();
-
-        await AtualizarAgrupadoraAoRemoverVinculo(despesaAgrupadora);
-    }
-
-    private async Task AtualizarValorAgrupadora(Despesa despesa, Despesa despesaAgrupadora)
-    {
         var valorAgrupamento = await _repository.ObterValorTotalDespesasDaAgrupadora(despesaAgrupadora.Id);
+
         valorAgrupamento += despesa.Valor;
 
         if (valorAgrupamento > despesaAgrupadora.Valor)
@@ -224,20 +254,23 @@ public class DespesaService : IDespesaService
 
             despesaAgrupadora.AtualizarValor(despesaAgrupadora.Valor + diferenca);
         }
-    }
-
-    private async Task AtualizarAgrupadoraAoRemoverVinculo(Despesa despesaAgrupadora)
-    {
-        if (despesaAgrupadora.QuantidadeRegistros == 1)
-        {
-            despesaAgrupadora.DesmarcarDespesaComoAgrupadora();
-        }
-        else
-        {
-            despesaAgrupadora.DiminuirRegistro();
-        }
 
         await _repository.Update(despesaAgrupadora);
+
+        return Result.Success();
     }
 
+    private async Task DesvincularDespesaDaAgrupadora(Despesa despesa, string idDespesaAgrupadora)
+    {
+        despesa.RemoverDespesaAgrupadora();
+
+        var despesaAgrupadora = await _repository.GetByID(idDespesaAgrupadora);
+        await RemoverVinculoAgrupadoraEhAtualizar(despesaAgrupadora, despesa);
+    }
+
+    private async Task RemoverVinculoAgrupadoraEhAtualizar(Despesa despesaAgrupadora, Despesa despesa)
+    {
+        despesaAgrupadora.DiminuirAgrupamento(despesa);
+        await _repository.Update(despesaAgrupadora);
+    }
 }

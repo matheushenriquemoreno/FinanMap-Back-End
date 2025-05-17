@@ -58,7 +58,7 @@ public abstract class RepositoryTransacaoBase<T> : RepositoryMongoBase<T>, IRepo
         return transacao;
     }
 
-    protected virtual async Task IncluirDependencias(Transacao transacao)
+    protected virtual async Task IncluirDependencias(T transacao)
     {
         var categoria = await _categoryRepository.GetByID(transacao.CategoriaId);
 

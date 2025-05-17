@@ -5,6 +5,8 @@ namespace Domain.Entity
     public class Despesa : Transacao, IClone<Despesa>
     {
         public string IdDespesaAgrupadora {  get; set; }
+        public Despesa Agrupadora { get; set; }
+
         public bool? DespesaAgrupadora { get; protected set; }
         public int? QuantidadeRegistros { get; protected set; } = 0;
 
@@ -29,15 +31,22 @@ namespace Domain.Entity
             QuantidadeRegistros++;
         }
 
-        public void DesmarcarDespesaComoAgrupadora()
+        private void DesmarcarDespesaComoAgrupadora()
         {
             DespesaAgrupadora = false;
             QuantidadeRegistros = 0;
         }
 
-        public void DiminuirRegistro()
+        public void DiminuirAgrupamento(Despesa despesaDesvinculada)
         {
             QuantidadeRegistros--;
+
+            if (QuantidadeRegistros <= 0)
+            {
+                DesmarcarDespesaComoAgrupadora();
+            }
+
+            this.Valor = this.Valor - despesaDesvinculada.Valor;
         }
 
         public bool EstaAgrupada()

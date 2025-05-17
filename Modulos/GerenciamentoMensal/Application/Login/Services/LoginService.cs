@@ -9,6 +9,7 @@ using Domain.Login.Events;
 using Domain.Login.Repository;
 using Domain.Repository;
 using MediatR;
+using SharedDomain.Validator;
 
 namespace Application.Login.Services;
 
@@ -34,6 +35,9 @@ public class LoginService : ILoginService
     {
         try
         {
+            if (!EmailValidator.IsValidEmail(login.Email))
+                return Result.Failure(Error.NotFound("E-mail invalido!"));
+
             Usuario usuario = await _usuarioRepository.GetByEmail(login.Email);
 
             if (usuario is null)

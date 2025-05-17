@@ -13,7 +13,6 @@ namespace Application.Reports.Service
         private readonly IRendimentoService _rendimentoService;
         private readonly IDespesaService _despesaService;
         private readonly IInvestimentoService _investimentoService;
-
         private readonly IAcumuladoMensalReportRepository _acumuladoMensalReportRepository;
         private readonly IUsuarioLogado _usuarioLogado;
 

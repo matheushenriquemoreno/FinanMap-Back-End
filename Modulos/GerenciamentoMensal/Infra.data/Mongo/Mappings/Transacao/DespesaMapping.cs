@@ -14,6 +14,7 @@ internal class DespesaMapping : IMongoMapping
         {
             cm.AutoMap();
             cm.SetIgnoreExtraElements(true);
+            cm.UnmapMember(x => x.Agrupadora);
         });
 
         var mongoDatabase = mongoClient.GetDatabase(MongoDBSettings.DataBaseName);

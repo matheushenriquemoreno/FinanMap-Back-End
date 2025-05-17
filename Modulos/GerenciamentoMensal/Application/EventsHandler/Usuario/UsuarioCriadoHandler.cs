@@ -35,6 +35,9 @@ namespace Application.EventsHandler.Usuario
                 new Categoria("Lazer e Entretenimento", TipoCategoria.Despesa, idUsuario),
                 new Categoria("Serviços de streaming", TipoCategoria.Despesa, idUsuario),
                 new Categoria("Roupa e Acessórios", TipoCategoria.Despesa, idUsuario),
+                new Categoria("Viagem", TipoCategoria.Despesa, idUsuario),
+                new Categoria("Empréstimo", TipoCategoria.Despesa, idUsuario),
+                new Categoria("Supermercado", TipoCategoria.Despesa, idUsuario),
             };
 
             // Rendimentos

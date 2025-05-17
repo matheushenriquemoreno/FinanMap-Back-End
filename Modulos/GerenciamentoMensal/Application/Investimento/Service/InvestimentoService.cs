@@ -47,7 +47,7 @@ public class InvestimentoService : IInvestimentoService
         Investimento investimento = await _investimentoRepository.GetByID(updateDTO.Id);
 
         if (investimento == null)
-            return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Rendimento informado não existe!"));
+            return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Investimento informado não existe!"));
 
         Categoria categoria = await _categoriaRepository.GetByID(updateDTO.CategoriaId);
 

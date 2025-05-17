@@ -56,7 +56,7 @@ public static class MongoConfig
     public static void ConfiguarMongoDB(this IServiceCollection services)
     {
         IMongoClient mongoClient = new MongoClient(MongoDBSettings.ConnectionString);
-
+        
         services.AddSingleton(mongoClient);
 
         services.MappingAllClassMongo(mongoClient);

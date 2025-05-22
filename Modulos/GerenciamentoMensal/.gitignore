@@ -5,7 +5,7 @@
 
 # dotenv files
 .env
-
+.publish/
 # User-specific files
 *.rsuser
 *.suo

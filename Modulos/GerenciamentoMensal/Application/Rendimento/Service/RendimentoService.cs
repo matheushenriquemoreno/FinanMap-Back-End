@@ -28,7 +28,7 @@ public class RendimentoService : IRendimentoService
 
     public async Task<Result<ResultRendimentoDTO>> Adicionar(CreateRendimentoDTO createDTO)
     {
-        Categoria? categoria = await _categoriaRepository.GetByID(createDTO.CategoriaId);
+        Categoria? categoria = await _categoriaRepository.GetById(createDTO.CategoriaId);
 
         if (categoria == null)
             return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Categoria informada não existe!"));
@@ -46,12 +46,12 @@ public class RendimentoService : IRendimentoService
 
     public async Task<Result<ResultRendimentoDTO>> Atualizar(UpdateRendimentoDTO updateDTO)
     {
-        Rendimento rendimento = await _rendimentoRepository.GetByID(updateDTO.Id);
+        Rendimento rendimento = await _rendimentoRepository.GetById(updateDTO.Id);
 
         if (rendimento == null)
             return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Rendimento informado não existe!"));
 
-        Categoria categoria = await _categoriaRepository.GetByID(updateDTO.CategoriaId);
+        Categoria categoria = await _categoriaRepository.GetById(updateDTO.CategoriaId);
 
         if (categoria == null)
             return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Categoria informada não existe!"));
@@ -69,7 +69,7 @@ public class RendimentoService : IRendimentoService
 
     public async Task<Result> Excluir(string id)
     {
-        var rendimento = await _rendimentoRepository.GetByID(id);
+        var rendimento = await _rendimentoRepository.GetById(id);
 
         if (rendimento == null)
             return Result.Failure(Error.NotFound("Rendimento informado não existe!"));
@@ -81,7 +81,7 @@ public class RendimentoService : IRendimentoService
 
     public async Task<Result<ResultRendimentoDTO>> ObterPeloID(string id)
     {
-        var rendimento = await _rendimentoRepository.GetByID(id);
+        var rendimento = await _rendimentoRepository.GetById(id);
 
         if (rendimento == null)
             return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Rendimento informado não existe!"));
@@ -98,7 +98,7 @@ public class RendimentoService : IRendimentoService
 
     public async Task<Result<ResultRendimentoDTO>> AtualizarValor(UpdateValorTransacaoDTO updateValorTransacaoDTO)
     {
-        Rendimento rendimento = await _rendimentoRepository.GetByID(updateValorTransacaoDTO.Id);
+        Rendimento rendimento = await _rendimentoRepository.GetById(updateValorTransacaoDTO.Id);
 
         if (rendimento == null)
             return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Rendimento informado não existe!"));

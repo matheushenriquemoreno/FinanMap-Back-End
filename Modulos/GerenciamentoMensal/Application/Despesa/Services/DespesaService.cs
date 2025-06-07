@@ -26,7 +26,7 @@ public class DespesaService : IDespesaService
 
     public async Task<Result<ResultDespesaDTO>> Adicionar(CreateDespesaDTO createDTO)
     {
-        Categoria? categoria = await _categoriaRepository.GetByID(createDTO.CategoriaId);
+        Categoria? categoria = await _categoriaRepository.GetById(createDTO.CategoriaId);
 
         if (categoria == null)
             return Result.Failure<ResultDespesaDTO>(Error.NotFound("Categoria informada não existe!"));
@@ -52,12 +52,12 @@ public class DespesaService : IDespesaService
 
     public async Task<Result<ResultDespesaDTO>> Atualizar(UpdateDespesaDTO updateDTO)
     {
-        var despesa = await _repository.GetByID(updateDTO.Id);
+        var despesa = await _repository.GetById(updateDTO.Id);
 
         if (despesa == null)
             return Result.Failure<ResultDespesaDTO>(Error.NotFound("Despesa informada não existente"));
 
-        Categoria categoria = await _categoriaRepository.GetByID(updateDTO.CategoriaId);
+        Categoria categoria = await _categoriaRepository.GetById(updateDTO.CategoriaId);
 
         if (categoria == null)
             return Result.Failure<ResultDespesaDTO>(Error.NotFound("Categoria informada não existe!"));
@@ -67,7 +67,7 @@ public class DespesaService : IDespesaService
             if (updateDTO.IdDespesaAgrupadora.PossuiValor())
                 return Result.Failure<ResultDespesaDTO>(Error.NotFound("Despesa que e usada para agrupar outras, não pode ser vinculada a nenhuma outra."));
 
-            var valorAgrupamento = await _repository.ObterValorTotalDespesasDaAgrupadora(despesa.Id);
+            var valorAgrupamento = await _repository.GetValorTotalDespesasDaAgrupadora(despesa.Id);
 
             if (valorAgrupamento > updateDTO.Valor)
                 return Result.Failure<ResultDespesaDTO>(Error.Validation($"Valor informado menor que o total das despesas agrupadas, valor total: {valorAgrupamento}"));
@@ -94,9 +94,9 @@ public class DespesaService : IDespesaService
     {
         if (despesa.EstaAgrupada())
         {
-            var despesaAgrupadora = await _repository.GetByID(despesa.IdDespesaAgrupadora);
+            var despesaAgrupadora = await _repository.GetById(despesa.IdDespesaAgrupadora);
 
-            var valorAgrupamento = await _repository.ObterValorTotalDespesasDaAgrupadora(despesa.IdDespesaAgrupadora);
+            var valorAgrupamento = await _repository.GetValorTotalDespesasDaAgrupadora(despesa.IdDespesaAgrupadora);
 
             if (despesaAgrupadora.Valor < valorAgrupamento)
             {
@@ -104,6 +104,8 @@ public class DespesaService : IDespesaService
 
                 await _repository.Update(despesaAgrupadora);
             }
+
+            despesa.Agrupadora = despesaAgrupadora;
         }
     }
 
@@ -148,17 +150,26 @@ public class DespesaService : IDespesaService
 
     public async Task<Result> Excluir(string id)
     {
-        Despesa despesa = await _repository.GetByID(id);
+        Despesa despesa = await _repository.GetById(id);
 
         if (despesa == null)
             return Result.Failure(Error.NotFound("Despesa informada não existente"));
 
         if (despesa.EstaAgrupada())
         {
-            var despesaAgrupadora = await _repository.GetByID(despesa.IdDespesaAgrupadora);
+            var despesaAgrupadora = await _repository.GetById(despesa.IdDespesaAgrupadora);
             await RemoverVinculoAgrupadoraEhAtualizar(despesaAgrupadora, despesa);
         }
+        else if (despesa.EhAgrupadora())
+        {
+            var despesasFilhas = await _repository.GetDespesasDaAgrupadora(despesa.Id);
 
+            foreach (var filha in despesasFilhas)
+            {
+                await _repository.Delete(filha);
+            }
+        }
+        
         await _repository.Delete(despesa);
 
         return Result.Success();
@@ -166,7 +177,7 @@ public class DespesaService : IDespesaService
 
     public async Task<Result<ResultDespesaDTO>> ObterPeloID(string id)
     {
-        var despesa = await _repository.GetByID(id);
+        var despesa = await _repository.GetById(id);
 
         if (despesa == null)
             return Result.Failure<ResultDespesaDTO>(Error.NotFound("Despesa informada não existente"));
@@ -176,28 +187,28 @@ public class DespesaService : IDespesaService
 
     public async Task<List<ResultDespesaDTO>> ObterMesAno(int mes, int ano, string descricao)
     {
-        var despesas = await _repository.ObterPeloMes(mes, ano, _usuarioLogado.Id, descricao);
+        var despesas = await _repository.GetPeloMes(mes, ano, _usuarioLogado.Id, descricao);
 
         return despesas.Select(x => ObterDespesaDTO(x)).ToList();
     }
 
     public async Task<List<ResultDespesaDTO>> ObterDespesasDaAgrupadora(string idDespesa)
     {
-        var despesas = await _repository.ObterDespesasDaAgrupadora(idDespesa);
+        var despesas = await _repository.GetDespesasDaAgrupadora(idDespesa);
 
         return despesas.Select(x => ObterDespesaDTO(x)).ToList();
     }
 
     public async Task<Result<ResultDespesaDTO>> AtualizarValor(UpdateValorTransacaoDTO updateValorTransacaoDTO)
     {
-        var despesa = await _repository.GetByID(updateValorTransacaoDTO.Id);
+        var despesa = await _repository.GetById(updateValorTransacaoDTO.Id);
 
         if (despesa == null)
             return Result.Failure<ResultDespesaDTO>(Error.NotFound("Despesa informado não existe!"));
-        
+
         if (despesa.EhAgrupadora())
         {
-            var valorAgrupamento = await _repository.ObterValorTotalDespesasDaAgrupadora(despesa.Id);
+            var valorAgrupamento = await _repository.GetValorTotalDespesasDaAgrupadora(despesa.Id);
 
             if (valorAgrupamento > updateValorTransacaoDTO.Valor)
                 return Result.Failure<ResultDespesaDTO>(Error.Validation($"Valor informado menor que o total das despesas agrupadas, valor total: {valorAgrupamento}"));
@@ -236,7 +247,7 @@ public class DespesaService : IDespesaService
 
     private async Task<Result> VincularDespesaAUmaAgrupadora(string idDespesaAgrupadora, Despesa despesa)
     {
-        var despesaAgrupadora = await _repository.GetByID(idDespesaAgrupadora);
+        var despesaAgrupadora = await _repository.GetById(idDespesaAgrupadora);
 
         if (despesaAgrupadora == null)
             return Result.Failure(Error.NotFound("Despesa para realizar agrupamento não existe!"));
@@ -244,7 +255,7 @@ public class DespesaService : IDespesaService
         despesa.AdicionarDespesaAgrupadora(despesaAgrupadora);
         despesaAgrupadora.MarcarDespesaComoAgrupadora();
 
-        var valorAgrupamento = await _repository.ObterValorTotalDespesasDaAgrupadora(despesaAgrupadora.Id);
+        var valorAgrupamento = await _repository.GetValorTotalDespesasDaAgrupadora(despesaAgrupadora.Id);
 
         valorAgrupamento += despesa.Valor;
 
@@ -264,7 +275,7 @@ public class DespesaService : IDespesaService
     {
         despesa.RemoverDespesaAgrupadora();
 
-        var despesaAgrupadora = await _repository.GetByID(idDespesaAgrupadora);
+        var despesaAgrupadora = await _repository.GetById(idDespesaAgrupadora);
         await RemoverVinculoAgrupadoraEhAtualizar(despesaAgrupadora, despesa);
     }
 

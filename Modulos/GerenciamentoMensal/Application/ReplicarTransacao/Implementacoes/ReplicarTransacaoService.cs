@@ -70,7 +70,7 @@ namespace Application.ReplicarTransacao.Implementacoes
 
         private async Task ReplicarBase<T>(IRepositoryBase<T> repository, ReplicarRegistros periodo) where T : Transacao, IClone<T>
         {
-            List<T> registros = await repository.GetByID(periodo.IdRegistros);
+            List<T> registros = await repository.GetByIds(periodo.IdRegistros);
 
             if (registros.Count == 0)
                 throw new Exception("Não foi encontrados registros");
@@ -89,13 +89,7 @@ namespace Application.ReplicarTransacao.Implementacoes
                     clone.Ano = periodoInicial.Year;
                     clone.Mes = periodoInicial.Month;
 
-                    var registrosIguais = await repository
-                                    .GetWhere(x => x.Ano == clone.Ano
-                                        && x.Mes == clone.Mes
-                                        && x.Descricao == clone.Descricao
-                                        && x.CategoriaId == clone.CategoriaId);
-
-                    var registroJaCadastrado = registrosIguais.FirstOrDefault();
+                    var registroJaCadastrado = await ObterRegistroJaCadastrado(repository, clone);
 
                     if (registroJaCadastrado is not null)
                     {
@@ -117,7 +111,7 @@ namespace Application.ReplicarTransacao.Implementacoes
 
         private async Task ReplicarDespesa(IDespesaRepository repository, ReplicarRegistros periodo)
         {
-            List<Despesa> despesas = await repository.GetByID(periodo.IdRegistros);
+            List<Despesa> despesas = await repository.GetByIds(periodo.IdRegistros);
 
             if (despesas.Count == 0)
                 throw new Exception("Não foi encontrados registros");
@@ -136,41 +130,22 @@ namespace Application.ReplicarTransacao.Implementacoes
                     clone.Ano = periodoInicial.Year;
                     clone.Mes = periodoInicial.Month;
 
-                    var registroIgualNoMes = await repository
-                                    .GetWhere(x => x.Ano == clone.Ano
-                                        && x.Mes == clone.Mes
-                                        && x.Descricao == clone.Descricao
-                                        && x.CategoriaId == clone.CategoriaId);
+                    Despesa registroCadastrado = await ObterRegistroJaCadastrado(repository, clone);
 
-                    var registroCadastrado = registroIgualNoMes.FirstOrDefault();
-
-                    if (registroCadastrado is not null)
+                    var ExisteRegistroCadastrado = registroCadastrado is not null;
+                    if (ExisteRegistroCadastrado)
                     {
                         registroCadastrado.Valor = clone.Valor;
                         await repository.Update(registroCadastrado);
-                        continue;
                     }
-
-                    clone = await repository.Add(clone);
+                    else
+                    {
+                        clone = await repository.Add(clone);
+                    }
 
                     if (despesa.DespesaAgrupadora.HasValue && despesa.DespesaAgrupadora.Value)
                     {
-                        var despesasAgrupadas = await repository.ObterDespesasDaAgrupadora(despesa.Id);
-
-                        var clonesAgrupadora = despesasAgrupadas.Select(x =>
-                        {
-                            var cloneAgrupada = x.Clone();
-
-                            cloneAgrupada.Ano = periodoInicial.Year;
-                            cloneAgrupada.Mes = periodoInicial.Month;
-                            cloneAgrupada.IdDespesaAgrupadora = clone.Id;
-
-                            return cloneAgrupada;
-                        }).ToList();
-
-                        if (clonesAgrupadora.Count > 0)
-                            await repository.Add(clonesAgrupadora);
-
+                        await ClonarDesesasAgrupadas(repository, periodoInicial, despesa.Id, ExisteRegistroCadastrado ? registroCadastrado : clone);
                     }
                 }
 
@@ -178,5 +153,45 @@ namespace Application.ReplicarTransacao.Implementacoes
             }
         }
 
+        private static async Task ClonarDesesasAgrupadas(IDespesaRepository repository, DateTime periodoInicial, string idDespesa, Despesa despesaCriadaOuExistente)
+        {
+            var despesasAgrupadas = await repository.GetDespesasDaAgrupadora(idDespesa);
+
+            var clones = new List<Despesa>();
+
+            foreach (var despesaFilha in despesasAgrupadas)
+            {
+                var cloneFilha = despesaFilha.Clone();
+                cloneFilha.Ano = periodoInicial.Year;
+                cloneFilha.Mes = periodoInicial.Month;
+                cloneFilha.IdDespesaAgrupadora = despesaCriadaOuExistente.Id;
+
+                var registroJaCadastrado = await ObterRegistroJaCadastrado(repository, cloneFilha);
+
+                if (registroJaCadastrado is not null)
+                {
+                    registroJaCadastrado.Valor = cloneFilha.Valor;
+                    await repository.Update(registroJaCadastrado);
+                    continue;
+                }
+
+                clones.Add(cloneFilha);
+            }
+
+            if (clones.Count > 0)
+                await repository.Add(clones);
+        }
+
+        private static async Task<T> ObterRegistroJaCadastrado<T>(IRepositoryBase<T> repository, T clone) where T : Transacao, IClone<T>
+        {
+            var registroIgualNoMes = await repository
+                            .GetWhere(x => x.Ano == clone.Ano
+                                && x.Mes == clone.Mes
+                                && x.Descricao == clone.Descricao
+                                && x.CategoriaId == clone.CategoriaId);
+
+            var registroCadastrado = registroIgualNoMes.FirstOrDefault();
+            return registroCadastrado;
+        }
     }
 }

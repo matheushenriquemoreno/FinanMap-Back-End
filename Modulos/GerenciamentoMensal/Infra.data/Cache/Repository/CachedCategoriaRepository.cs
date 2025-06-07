@@ -44,13 +44,13 @@ public class CachedCategoriaRepository : ICategoriaRepository
         await _repositoryDecorate.Delete(entity);
     }
 
-    public async Task<Categoria> GetByID(string id)
+    public async Task<Categoria> GetById(string id)
     {
         var key = id;
 
         return await _memoryCache.GetOrCreateAsync(key, item =>
          {
-             return _repositoryDecorate.GetByID(id);
+             return _repositoryDecorate.GetById(id);
          },
          _cacheOptions);
     }
@@ -121,9 +121,9 @@ public class CachedCategoriaRepository : ICategoriaRepository
         return await _repositoryDecorate.CategoriaPossuiVinculo(Categoria);
     }
 
-    public async Task<List<Categoria>> GetByID(List<string> ids)
+    public async Task<List<Categoria>> GetByIds(List<string> ids)
     {
-        return await _repositoryDecorate.GetByID(ids);
+        return await _repositoryDecorate.GetByIds(ids);
     }
 
     public Task<List<Categoria>> Add(List<Categoria> entity)

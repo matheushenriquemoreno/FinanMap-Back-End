@@ -17,7 +17,7 @@ public class DespesaRepository : RepositoryTransacaoBase<Despesa>, IDespesaRepos
         return nameof(Despesa);
     }
 
-    public Task<IEnumerable<Despesa>> ObterPeloMes(int mes, int ano, string usuarioId, string descricao)
+    public Task<IEnumerable<Despesa>> GetPeloMes(int mes, int ano, string usuarioId, string descricao)
     {
         var filtros = new List<FilterDefinition<Despesa>>();
         var filterDefinition = Builders<Despesa>.Filter;
@@ -34,13 +34,13 @@ public class DespesaRepository : RepositoryTransacaoBase<Despesa>, IDespesaRepos
         return ObterPeloMesFilter(mes, ano, usuarioId, filtros);
     }
 
-    public async Task<decimal> ObterValorTotalDespesasDaAgrupadora(string idDespesaAgrupadora)
+    public async Task<decimal> GetValorTotalDespesasDaAgrupadora(string idDespesaAgrupadora)
     {
         var despesas = await _entityCollection.Find(x => x.IdDespesaAgrupadora == idDespesaAgrupadora).ToListAsync();
         return despesas.Sum(x => x.Valor);
     }
 
-    public async Task<IEnumerable<Despesa>> ObterDespesasDaAgrupadora(string idDespesaAgrupadora)
+    public async Task<IEnumerable<Despesa>> GetDespesasDaAgrupadora(string idDespesaAgrupadora)
     {
         var despesas = await _entityCollection.Find(x => x.IdDespesaAgrupadora == idDespesaAgrupadora).ToListAsync();
 
@@ -58,7 +58,7 @@ public class DespesaRepository : RepositoryTransacaoBase<Despesa>, IDespesaRepos
 
         if (despesa.EstaAgrupada())
         {
-            despesa.Agrupadora = await GetByID(despesa.IdDespesaAgrupadora);
+            despesa.Agrupadora = await GetById(despesa.IdDespesaAgrupadora);
         }
     }
 }

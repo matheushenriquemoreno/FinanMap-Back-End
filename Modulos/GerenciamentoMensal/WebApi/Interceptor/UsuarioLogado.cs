@@ -20,7 +20,7 @@ namespace WebApi.Interceptor
         {
             get
             {
-                var usuario = usuarioRepository.GetByID(this.Id).Result;
+                var usuario = usuarioRepository.GetById(this.Id).Result;
 
                 return usuario ?? throw new AutenticacaoNecessariaException("Para acessar essa funcionalidade e necessario autenticação!"); ;
             }

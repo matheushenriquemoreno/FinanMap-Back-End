@@ -9,8 +9,8 @@ public interface IRepositoryBase<T> where T : IEntityBase
     Task<List<T>> Add(List<T> entity);
     Task<T> Update(T entity);
     Task Delete(T entity);
-    Task<T> GetByID(string id);
-    Task<List<T>> GetByID(List<string> ids);
+    Task<T> GetById(string id);
+    Task<List<T>> GetByIds(List<string> ids);
     Task<IEnumerable<T>> GetWhere(Expression<Func<T, bool>> filtro);
 }
 

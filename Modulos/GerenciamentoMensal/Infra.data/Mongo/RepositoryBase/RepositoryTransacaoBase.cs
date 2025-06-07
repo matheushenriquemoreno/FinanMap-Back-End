@@ -48,7 +48,7 @@ public abstract class RepositoryTransacaoBase<T> : RepositoryMongoBase<T>, IRepo
         return transacoes;
     }
 
-    public override async Task<T> GetByID(string id)
+    public override async Task<T> GetById(string id)
     {
         var transacao = await _entityCollection.Find(x => x.Id == id).FirstOrDefaultAsync();
 
@@ -60,7 +60,7 @@ public abstract class RepositoryTransacaoBase<T> : RepositoryMongoBase<T>, IRepo
 
     protected virtual async Task IncluirDependencias(T transacao)
     {
-        var categoria = await _categoryRepository.GetByID(transacao.CategoriaId);
+        var categoria = await _categoryRepository.GetById(transacao.CategoriaId);
 
         transacao.Categoria = categoria;
     }

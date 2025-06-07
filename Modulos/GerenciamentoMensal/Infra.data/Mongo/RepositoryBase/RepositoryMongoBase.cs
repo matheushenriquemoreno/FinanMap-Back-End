@@ -29,7 +29,7 @@ public abstract class RepositoryMongoBase<T> : IRepositoryBase<T> where T : IEnt
     public virtual async Task Delete(T entity) =>
         await _entityCollection.DeleteOneAsync(x => x.Id == entity.Id);
 
-    public virtual async Task<T> GetByID(string id) =>
+    public virtual async Task<T> GetById(string id) =>
         await _entityCollection.Find(x => x.Id == id).FirstOrDefaultAsync();
 
     public virtual async Task<T> Update(T entity)
@@ -43,7 +43,7 @@ public abstract class RepositoryMongoBase<T> : IRepositoryBase<T> where T : IEnt
         return await _entityCollection.Find(filtro).ToListAsync();
     }
 
-    public async Task<List<T>> GetByID(List<string> ids)
+    public async Task<List<T>> GetByIds(List<string> ids)
     {
         var filter = Builders<T>.Filter.In(x => x.Id, ids);
 

@@ -4,7 +4,7 @@ namespace Domain.Repository;
 
 public interface IDespesaRepository : IRepositoryTransacaoBase<Despesa>
 {
-    Task<decimal> ObterValorTotalDespesasDaAgrupadora(string idDespesaAgrupadora);
-    Task<IEnumerable<Despesa>> ObterPeloMes(int mes, int ano, string usuarioId, string descricao);
-    Task<IEnumerable<Despesa>> ObterDespesasDaAgrupadora(string idDespesaAgrupadora);
+    Task<decimal> GetValorTotalDespesasDaAgrupadora(string idDespesaAgrupadora);
+    Task<IEnumerable<Despesa>> GetPeloMes(int mes, int ano, string usuarioId, string descricao);
+    Task<IEnumerable<Despesa>> GetDespesasDaAgrupadora(string idDespesaAgrupadora);
 }

@@ -32,7 +32,7 @@ namespace Application.Implementacoes
 
         public async Task<Result<ResultCategoriaDTO>> Atualizar(UpdateCategoriaDTO categoriaDTO)
         {
-            var categoria = await _categoriaRepository.GetByID(categoriaDTO.Id);
+            var categoria = await _categoriaRepository.GetById(categoriaDTO.Id);
 
             if (categoria is null)
                 return Result.Failure<ResultCategoriaDTO>(Error.NotFound("Categoria informada não existe!"));
@@ -46,7 +46,7 @@ namespace Application.Implementacoes
 
         public async Task<Result> Excluir(string id)
         {
-            var categoria = await _categoriaRepository.GetByID(id);
+            var categoria = await _categoriaRepository.GetById(id);
 
             if (categoria is null)
                 return Result.Failure(Error.NotFound("Categoria informada não existe!"));
@@ -68,7 +68,7 @@ namespace Application.Implementacoes
 
         public async Task<Result<ResultCategoriaDTO>> ObterPeloID(string id)
         {
-            var categoria = await _categoriaRepository.GetByID(id);
+            var categoria = await _categoriaRepository.GetById(id);
 
             if (categoria is null)
                 return Result.Failure<ResultCategoriaDTO>(Error.NotFound("Categoria informada não existe!"));

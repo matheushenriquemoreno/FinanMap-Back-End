@@ -26,7 +26,7 @@ public class InvestimentoService : IInvestimentoService
 
     public async Task<Result<ResultInvestimentoDTO>> Adicionar(CreateInvestimentoDTO createDTO)
     {
-        Categoria categoria = await _categoriaRepository.GetByID(createDTO.CategoriaId);
+        Categoria categoria = await _categoriaRepository.GetById(createDTO.CategoriaId);
 
         if (categoria == null)
             return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Categoria informada não existe!"));
@@ -44,12 +44,12 @@ public class InvestimentoService : IInvestimentoService
 
     public async Task<Result<ResultInvestimentoDTO>> Atualizar(UpdateInvestimentoDTO updateDTO)
     {
-        Investimento investimento = await _investimentoRepository.GetByID(updateDTO.Id);
+        Investimento investimento = await _investimentoRepository.GetById(updateDTO.Id);
 
         if (investimento == null)
             return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Investimento informado não existe!"));
 
-        Categoria categoria = await _categoriaRepository.GetByID(updateDTO.CategoriaId);
+        Categoria categoria = await _categoriaRepository.GetById(updateDTO.CategoriaId);
 
         if (categoria == null)
             return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Categoria informada não existe!"));
@@ -65,7 +65,7 @@ public class InvestimentoService : IInvestimentoService
 
     public async Task<Result> Excluir(string id)
     {
-        var investimento = await _investimentoRepository.GetByID(id);
+        var investimento = await _investimentoRepository.GetById(id);
 
         if (investimento == null)
             return Result.Failure(Error.NotFound("Investimento informado não existente"));
@@ -77,7 +77,7 @@ public class InvestimentoService : IInvestimentoService
 
     public async Task<Result<ResultInvestimentoDTO>> ObterPeloID(string id)
     {
-        var investimento = await _investimentoRepository.GetByID(id);
+        var investimento = await _investimentoRepository.GetById(id);
 
         if (investimento == null)
             return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Investimento informado não existente"));
@@ -94,7 +94,7 @@ public class InvestimentoService : IInvestimentoService
 
     public async Task<Result<ResultInvestimentoDTO>> AtualizarValor(UpdateValorTransacaoDTO updateValorTransacaoDTO)
     {
-        var investimento = await _investimentoRepository.GetByID(updateValorTransacaoDTO.Id);
+        var investimento = await _investimentoRepository.GetById(updateValorTransacaoDTO.Id);
 
         if (investimento == null)
             return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Investimento informado não existe!"));

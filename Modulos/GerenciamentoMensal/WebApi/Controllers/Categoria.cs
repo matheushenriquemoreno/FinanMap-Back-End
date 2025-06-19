@@ -29,6 +29,17 @@ public static class Categoria
             return result.MapResult();
         });
 
+
+        group.MapGet("/Apoio/SugestoesCategoria", (
+             [FromQuery] TipoCategoria tipoCategoria,
+             [FromQuery] string nomeItemCadastro,
+             ISugestaoCategoria service) =>
+        {
+            var result = service.ObterSurgestoesDeCategoriaBaseadoNoItemACadastrar(tipoCategoria, nomeItemCadastro);
+
+            return result.MapResult();
+        });
+
         group.MapPost("/", async (CreateCategoriaDTO categoriadto, ICategoriaService service) =>
         {
             var result = await service.Adicionar(categoriadto);

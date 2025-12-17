@@ -46,7 +46,6 @@ builder.Services.AddAuthentication(
             ClockSkew = TimeSpan.Zero 
    
         };
-        // logins de validação de token
         options.Events = new JwtBearerEvents
         {
             OnTokenValidated = context =>
@@ -144,6 +143,11 @@ app.MapUsuarioEndpoints()
 
 app.MapReplicarTransacaoEndpoints()
     .WithTags("ReplicarTranscao")
+    .WithOpenApi()
+    .RequireAuthorization();
+
+app.MapDashboardEndpoints()
+    .WithTags("Dashboard")
     .WithOpenApi()
     .RequireAuthorization();
 

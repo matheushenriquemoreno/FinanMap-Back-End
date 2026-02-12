@@ -16,15 +16,24 @@ namespace Application.Login.Services;
 public class LoginService : ILoginService
 {
     private readonly ICodigoLoginRepository _codigoLoginRepository;
+    private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IUsuarioRepository _usuarioRepository;
     private readonly IUsuarioEmailService _emailService;
     private readonly IServiceJWT _serviceJWT;
     private readonly IMediator _mediator;
     private const string MessageCodigoExpirado = "Codigo informado invalido, ou expirado.";
+    private const string MessageRefreshTokenInvalido = "Refresh token invalido ou expirado.";
 
-    public LoginService(ICodigoLoginRepository codigoLoginRepository, IUsuarioEmailService emailService, IUsuarioRepository usuarioRepository, IServiceJWT serviceJWT, IMediator mediator)
+    public LoginService(
+        ICodigoLoginRepository codigoLoginRepository,
+        IRefreshTokenRepository refreshTokenRepository,
+        IUsuarioEmailService emailService,
+        IUsuarioRepository usuarioRepository,
+        IServiceJWT serviceJWT,
+        IMediator mediator)
     {
         _codigoLoginRepository = codigoLoginRepository;
+        _refreshTokenRepository = refreshTokenRepository;
         _emailService = emailService;
         _usuarioRepository = usuarioRepository;
         _serviceJWT = serviceJWT;
@@ -73,13 +82,41 @@ public class LoginService : ILoginService
             if (codigoLogin.CodigoValido(codigoLoginDTO.Email, codigoLoginDTO.Codigo))
             {
                 var usuario = await _usuarioRepository.GetByEmail(codigoLogin.Email);
-                var tokenAcess = _serviceJWT.CriarToken(usuario);
-                var result = new ResultLoginDTO(tokenAcess, usuario.Nome);
+                var result = await GerarTokensParaUsuario(usuario);
                 await _codigoLoginRepository.Delete(codigoLogin);
                 return Result.Success(result);
             }
 
             return Result.Failure<ResultLoginDTO>(Error.NotFound(MessageCodigoExpirado));
+        }
+        catch (Exception ex) when (ex is not DomainValidatorException)
+        {
+            return Result.Failure<ResultLoginDTO>(Error.Exception(ex));
+        }
+    }
+
+    public async Task<Result<ResultLoginDTO>> RefreshToken(RefreshTokenRequestDTO refreshTokenDTO)
+    {
+        try
+        {
+            var refreshToken = await _refreshTokenRepository.GetByToken(refreshTokenDTO.RefreshToken);
+
+            if (refreshToken == null)
+                return Result.Failure<ResultLoginDTO>(Error.NotFound(MessageRefreshTokenInvalido));
+
+            // Deleta o refresh token usado (rotation)
+            await _refreshTokenRepository.Delete(refreshToken);
+
+            if (refreshToken.EstaExpirado())
+                return Result.Failure<ResultLoginDTO>(Error.NotFound(MessageRefreshTokenInvalido));
+
+            var usuario = await _usuarioRepository.GetById(refreshToken.UsuarioId);
+
+            if (usuario is null)
+                return Result.Failure<ResultLoginDTO>(Error.NotFound(MessageRefreshTokenInvalido));
+
+            var result = await GerarTokensParaUsuario(usuario);
+            return Result.Success(result);
         }
         catch (Exception ex) when (ex is not DomainValidatorException)
         {
@@ -109,6 +146,14 @@ public class LoginService : ILoginService
         {
             return Result.Failure(Error.Exception(ex));
         }
+    }
+
+    private async Task<ResultLoginDTO> GerarTokensParaUsuario(Usuario usuario)
+    {
+        var tokenAcess = _serviceJWT.CriarToken(usuario);
+        var novoRefreshToken = Domain.Login.Entity.RefreshToken.Create(usuario.Id);
+        await _refreshTokenRepository.Add(novoRefreshToken);
+        return new ResultLoginDTO(tokenAcess, novoRefreshToken.Token, usuario.Nome);
     }
 
     private async Task<Result> EnviarCodigoLogin(bool primeiroLogin, Usuario usuario, CodigoLogin codigo)

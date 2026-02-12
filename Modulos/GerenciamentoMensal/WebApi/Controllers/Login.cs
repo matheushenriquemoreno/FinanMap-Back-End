@@ -31,6 +31,13 @@ namespace WebApi.Controllers
                  return result.MapResult();
              });
 
+            group.MapPost("/refresh", async (ILoginService loginService, RefreshTokenRequestDTO refreshTokenDTO) =>
+            {
+                var result = await loginService.RefreshToken(refreshTokenDTO);
+
+                return result.MapResult();
+            });
+
             return group;
         }
     }

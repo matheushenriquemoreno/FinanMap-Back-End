@@ -27,7 +27,7 @@ public class ServiceJWT : IServiceJWT
             issuer: JWTModel.Issuer,
             audience: JWTModel.Audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddDays(15),
+            expires: DateTime.UtcNow.AddHours(1),
             signingCredentials: credentials
         );
 

@@ -7,4 +7,5 @@ public interface ILoginService
     Task<Result> Login(LoginDTO login);
     Task<Result<ResultLoginDTO>> VerificarCodigoEmailValido(CodigoLoginDTO codigoLoginDTO);
     Task<Result> CriarUsuario(CreateUsuarioDTO login);
+    Task<Result<ResultLoginDTO>> RefreshToken(RefreshTokenRequestDTO refreshTokenDTO);
 }

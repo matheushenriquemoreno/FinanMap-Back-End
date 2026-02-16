@@ -1,4 +1,5 @@
-﻿using Domain.Entity;
+﻿using System.Security.Claims;
+using Domain.Entity;
 
 namespace Application.Login.Interfaces;
 

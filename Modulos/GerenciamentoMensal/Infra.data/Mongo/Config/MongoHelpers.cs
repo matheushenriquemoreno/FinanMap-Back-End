@@ -15,4 +15,9 @@ public static class MongoHelpers
 
         return mongoDatabase.GetCollection<T>(collectionName);
     }
+
+    public static IMongoDatabase GetDatabase(this IMongoClient mongoClient, string database = null)
+    {
+        return mongoClient.GetDatabase(MongoDBSettings.DataBaseName);
+    }
 }

@@ -6,7 +6,7 @@ public static class Helper
     {
         var value = Environment.GetEnvironmentVariable(variable);
 
-        ArgumentNullException.ThrowIfNull(value);
+        ArgumentNullException.ThrowIfNull(value, variable);
 
         return value;
     }

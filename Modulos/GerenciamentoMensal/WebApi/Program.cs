@@ -6,6 +6,7 @@ using Infra.Autenticacao;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
+using WebApi.Configs;
 using WebApi.Configs.ExecptionHandler;
 using WebApi.Controllers;
 using WebApi.Controlles;
@@ -46,7 +47,6 @@ builder.Services.AddAuthentication(
             ClockSkew = TimeSpan.Zero 
    
         };
-        // logins de validação de token
         options.Events = new JwtBearerEvents
         {
             OnTokenValidated = context =>
@@ -106,47 +106,7 @@ if (app.Environment.IsDevelopment())
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
 
-app.MapLoginEndpoints()
-    .WithTags("Login")
-    .WithOpenApi();
-
-app.MapCategoriaEndpoints()
-      .WithTags("Categorias")
-      .WithOpenApi()
-      .RequireAuthorization();
-
-app.MapRendimentoEndpoints()
-      .WithTags("Rendimentos")
-      .WithOpenApi()
-      .RequireAuthorization();
-
-app.MapDespesaEndpoints()
-      .WithTags("Despesas")
-      .WithOpenApi()
-      .RequireAuthorization();
-
-app.MapInvestimentoEndpoints()
-    .WithTags("Investimentos")
-    .WithOpenApi()
-    .RequireAuthorization();
-
-app.MapAcumuladoMensalEndpoints()
-    .WithTags("AcumuladoMensalReport")
-    .WithOpenApi()
-    .RequireAuthorization();
-
-
-app.MapUsuarioEndpoints()
-    .WithTags("Usuario")
-    .WithOpenApi()
-    .RequireAuthorization();
-
-
-app.MapReplicarTransacaoEndpoints()
-    .WithTags("ReplicarTranscao")
-    .WithOpenApi()
-    .RequireAuthorization();
-
-app.MapHealthChecks("/health");
+app.MapPublicEndpoints();
+app.MapProtectedEndpoints();
 
 app.Run();

@@ -1,6 +1,5 @@
-using System.Globalization;
 using Domain.Dashboard.Models;
-using Domain.Entity;
+using Infra.Data.Mongo;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -10,9 +9,9 @@ public class DashboardRepository : IDashboardRepository
 {
     private readonly IMongoDatabase _database;
 
-    public DashboardRepository(IMongoDatabase database)
+    public DashboardRepository(IMongoClient mongoClient)
     {
-        _database = database;
+        _database = mongoClient.GetDatabase();
     }
 
     public async Task<ResumoFinanceiroModel> ObterResumoFinanceiro(string usuarioId, int mesInicial, int mesFinal, int ano)

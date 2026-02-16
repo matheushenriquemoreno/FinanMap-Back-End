@@ -12,7 +12,7 @@ public class CachedCategoriaRepository : ICategoriaRepository
     private readonly ICategoriaRepository _repositoryDecorate;
     private readonly IMemoryCache _memoryCache;
     private readonly MemoryCacheEntryOptions _cacheOptions;
-    private static readonly ConcurrentDictionary<string, string> _cacheKeysFilterAllCategorias = new();
+    private static readonly ConcurrentDictionary<string, HashSet<string>> _cacheKeysFilterAllCategorias = new();
 
     public CachedCategoriaRepository(ICategoriaRepository repositoryDecorate, IMemoryCache memoryCache)
     {
@@ -67,7 +67,14 @@ public class CachedCategoriaRepository : ICategoriaRepository
 
         var key = $"{idUsuario}-{tipoCategoria}";
 
-        _cacheKeysFilterAllCategorias.TryAdd(idUsuario, key);
+        _cacheKeysFilterAllCategorias.AddOrUpdate(
+            idUsuario,
+            new HashSet<string> { key },
+            (_, existingSet) =>
+            {
+                existingSet.Add(key);
+                return existingSet;
+            });
 
         return await _memoryCache.GetOrCreateAsync(key, item =>
         {
@@ -96,14 +103,12 @@ public class CachedCategoriaRepository : ICategoriaRepository
 
             if (usuarioCategoria is not null)
             {
-                var keysUser = _cacheKeysFilterAllCategorias
-                    .Where(x => x.Key == usuarioCategoria)
-                    .ToList();
-
-                foreach (var item in keysUser)
+                if (_cacheKeysFilterAllCategorias.TryRemove(usuarioCategoria, out var keysUser))
                 {
-                    _memoryCache.Remove(item.Value);
-                    _cacheKeysFilterAllCategorias.TryRemove(item);
+                    foreach (var cacheKey in keysUser)
+                    {
+                        _memoryCache.Remove(cacheKey);
+                    }
                 }
             }
 
@@ -128,6 +133,10 @@ public class CachedCategoriaRepository : ICategoriaRepository
 
     public Task<List<Categoria>> Add(List<Categoria> entity)
     {
+        if (entity.Any())
+        {
+            InvalidarCache(usuarioCategoria: entity.First().UsuarioId);
+        }
         return _repositoryDecorate.Add(entity);
     }
 }

@@ -55,5 +55,10 @@ public static class EndpointConfiguration
             .WithTags("Dashboard")
             .WithOpenApi()
             .RequireAuthorization();
+
+        app.MapCompartilhamentoEndpoints()
+            .WithTags("Compartilhamento")
+            .WithOpenApi()
+            .RequireAuthorization();
     }
 }

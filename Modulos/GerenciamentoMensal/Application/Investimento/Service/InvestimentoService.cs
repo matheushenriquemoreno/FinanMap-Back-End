@@ -1,6 +1,7 @@
 ﻿using Application.DTOs;
 using Application.Interface;
 using Application.Shared.Transacao.DTOs;
+using Domain.Compartilhamento.Entity;
 using Domain.Entity;
 using Domain.Login.Interfaces;
 using Domain.Relatorios.AcumuladoMensal;
@@ -26,16 +27,20 @@ public class InvestimentoService : IInvestimentoService
 
     public async Task<Result<ResultInvestimentoDTO>> Adicionar(CreateInvestimentoDTO createDTO)
     {
+        // Verificar permissão em modo compartilhado
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure<ResultInvestimentoDTO>(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
         Categoria categoria = await _categoriaRepository.GetById(createDTO.CategoriaId);
 
         if (categoria == null)
             return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Categoria informada não existe!"));
 
-        Investimento investimento = new(createDTO.Ano, createDTO.Mes, createDTO.Descricao, createDTO.Valor, categoria, _usuarioLogado.Usuario);
+        Investimento investimento = new(createDTO.Ano, createDTO.Mes, createDTO.Descricao, createDTO.Valor, categoria, _usuarioLogado.UsuarioContextoDados);
 
         await _investimentoRepository.Add(investimento);
 
-        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(investimento.Mes, investimento.Ano, _usuarioLogado.Id);
+        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(investimento.Mes, investimento.Ano, _usuarioLogado.IdContextoDados);
 
         ResultInvestimentoDTO rendimentoDTO = ObterResultInvestimentoDTO(investimento, reportAcumulado);
 
@@ -44,6 +49,10 @@ public class InvestimentoService : IInvestimentoService
 
     public async Task<Result<ResultInvestimentoDTO>> Atualizar(UpdateInvestimentoDTO updateDTO)
     {
+        // Verificar permissão em modo compartilhado
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure<ResultInvestimentoDTO>(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
         Investimento investimento = await _investimentoRepository.GetById(updateDTO.Id);
 
         if (investimento == null)
@@ -58,13 +67,17 @@ public class InvestimentoService : IInvestimentoService
 
         await _investimentoRepository.Update(investimento);
 
-        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(investimento.Mes, investimento.Ano, _usuarioLogado.Id);
+        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(investimento.Mes, investimento.Ano, _usuarioLogado.IdContextoDados);
 
         return Result.Success(ObterResultInvestimentoDTO(investimento, reportAcumulado));
     }
 
     public async Task<Result> Excluir(string id)
     {
+        // Verificar permissão em modo compartilhado
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
         var investimento = await _investimentoRepository.GetById(id);
 
         if (investimento == null)
@@ -87,13 +100,17 @@ public class InvestimentoService : IInvestimentoService
 
     public async Task<List<ResultInvestimentoDTO>> ObterMesAno(int mes, int ano)
     {
-        var despesas = await _investimentoRepository.ObterPeloMes(mes, ano, _usuarioLogado.Id);
+        var despesas = await _investimentoRepository.ObterPeloMes(mes, ano, _usuarioLogado.IdContextoDados);
 
         return despesas.Select(x => ObterResultInvestimentoDTO(x)).ToList();
     }
 
     public async Task<Result<ResultInvestimentoDTO>> AtualizarValor(UpdateValorTransacaoDTO updateValorTransacaoDTO)
     {
+        // Verificar permissão em modo compartilhado
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure<ResultInvestimentoDTO>(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
         var investimento = await _investimentoRepository.GetById(updateValorTransacaoDTO.Id);
 
         if (investimento == null)
@@ -103,7 +120,7 @@ public class InvestimentoService : IInvestimentoService
 
         await _investimentoRepository.Update(investimento);
 
-        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(investimento.Mes, investimento.Ano, _usuarioLogado.Id);
+        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(investimento.Mes, investimento.Ano, _usuarioLogado.IdContextoDados);
 
         return Result.Success(ObterResultInvestimentoDTO(investimento, reportAcumulado));
     }

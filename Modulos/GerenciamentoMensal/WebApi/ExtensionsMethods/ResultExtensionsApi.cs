@@ -70,6 +70,7 @@ public static class ResultExtensionsApi
             TypeError.Validation => Results.UnprocessableEntity(ApiResultError.Create(error)),
             TypeError.NotFound => Results.NotFound(ApiResultError.Create(error)),
             TypeError.Exception => Results.InternalServerError(ApiResultError.Create(error)),
+            TypeError.Forbidden => Results.Json(ApiResultError.Create(error), statusCode: (int)HttpStatusCode.Forbidden),
             _ => throw new Exception("TypeErro invalid")
         };
     }

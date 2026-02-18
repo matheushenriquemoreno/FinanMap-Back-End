@@ -1,7 +1,7 @@
 ﻿using Application.DTOs;
 using Application.Interface;
-
 using Application.Shared.Transacao.DTOs;
+using Domain.Compartilhamento.Entity;
 using Domain.Entity;
 using Domain.Login.Interfaces;
 using Domain.Relatorios.AcumuladoMensal;
@@ -28,16 +28,21 @@ public class RendimentoService : IRendimentoService
 
     public async Task<Result<ResultRendimentoDTO>> Adicionar(CreateRendimentoDTO createDTO)
     {
+        // Verificar permissão de edição em modo compartilhado
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure<ResultRendimentoDTO>(
+                Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
         Categoria? categoria = await _categoriaRepository.GetById(createDTO.CategoriaId);
 
         if (categoria == null)
             return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Categoria informada não existe!"));
 
-        Rendimento rendimento = new Rendimento(createDTO.Ano, createDTO.Mes, createDTO.Descricao, createDTO.Valor, categoria, _usuarioLogado.Usuario);
+        Rendimento rendimento = new Rendimento(createDTO.Ano, createDTO.Mes, createDTO.Descricao, createDTO.Valor, categoria, _usuarioLogado.UsuarioContextoDados);
 
         await _rendimentoRepository.Add(rendimento);
 
-        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(rendimento.Mes, rendimento.Ano, _usuarioLogado.Id);
+        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(rendimento.Mes, rendimento.Ano, _usuarioLogado.IdContextoDados);
 
         ResultRendimentoDTO rendimentoDTO = ObterRendimentoDTO(rendimento, reportAcumulado);
 
@@ -46,6 +51,11 @@ public class RendimentoService : IRendimentoService
 
     public async Task<Result<ResultRendimentoDTO>> Atualizar(UpdateRendimentoDTO updateDTO)
     {
+        // Verificar permissão de edição em modo compartilhado
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure<ResultRendimentoDTO>(
+                Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
         Rendimento rendimento = await _rendimentoRepository.GetById(updateDTO.Id);
 
         if (rendimento == null)
@@ -60,7 +70,7 @@ public class RendimentoService : IRendimentoService
 
         await _rendimentoRepository.Update(rendimento);
 
-        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(rendimento.Mes, rendimento.Ano, _usuarioLogado.Id);
+        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(rendimento.Mes, rendimento.Ano, _usuarioLogado.IdContextoDados);
 
         ResultRendimentoDTO rendimentoDTO = ObterRendimentoDTO(rendimento, reportAcumulado);
 
@@ -69,6 +79,11 @@ public class RendimentoService : IRendimentoService
 
     public async Task<Result> Excluir(string id)
     {
+        // Verificar permissão de edição em modo compartilhado
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure(
+                Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
         var rendimento = await _rendimentoRepository.GetById(id);
 
         if (rendimento == null)
@@ -91,13 +106,18 @@ public class RendimentoService : IRendimentoService
 
     public async Task<List<ResultRendimentoDTO>> ObterRendimentoMes(int mes, int ano)
     {
-        var rendimentos = await _rendimentoRepository.ObterPeloMes(mes, ano, _usuarioLogado.Id);
+        var rendimentos = await _rendimentoRepository.ObterPeloMes(mes, ano, _usuarioLogado.IdContextoDados);
 
         return rendimentos.Select(x => ObterRendimentoDTO(x)).ToList();
     }
 
     public async Task<Result<ResultRendimentoDTO>> AtualizarValor(UpdateValorTransacaoDTO updateValorTransacaoDTO)
     {
+        // Verificar permissão de edição em modo compartilhado
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure<ResultRendimentoDTO>(
+                Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
         Rendimento rendimento = await _rendimentoRepository.GetById(updateValorTransacaoDTO.Id);
 
         if (rendimento == null)
@@ -107,7 +127,7 @@ public class RendimentoService : IRendimentoService
 
         await _rendimentoRepository.Update(rendimento);
 
-        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(rendimento.Mes, rendimento.Ano, _usuarioLogado.Id);
+        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(rendimento.Mes, rendimento.Ano, _usuarioLogado.IdContextoDados);
 
         return Result.Success(ObterRendimentoDTO(rendimento, reportAcumulado));
     }

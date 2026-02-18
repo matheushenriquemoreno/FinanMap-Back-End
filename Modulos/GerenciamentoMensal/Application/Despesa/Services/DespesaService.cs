@@ -1,6 +1,7 @@
 ﻿using Application.DTOs;
 using Application.Interfaces;
 using Application.Shared.Transacao.DTOs;
+using Domain.Compartilhamento.Entity;
 using Domain.Entity;
 using Domain.Login.Interfaces;
 using Domain.Relatorios.AcumuladoMensal;
@@ -26,12 +27,16 @@ public class DespesaService : IDespesaService
 
     public async Task<Result<ResultDespesaDTO>> Adicionar(CreateDespesaDTO createDTO)
     {
+        // Verificar permissão em modo compartilhado
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure<ResultDespesaDTO>(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
         Categoria? categoria = await _categoriaRepository.GetById(createDTO.CategoriaId);
 
         if (categoria == null)
             return Result.Failure<ResultDespesaDTO>(Error.NotFound("Categoria informada não existe!"));
 
-        Despesa despesa = new Despesa(createDTO.Ano, createDTO.Mes, createDTO.Descricao, createDTO.Valor, categoria, _usuarioLogado.Usuario);
+        Despesa despesa = new Despesa(createDTO.Ano, createDTO.Mes, createDTO.Descricao, createDTO.Valor, categoria, _usuarioLogado.UsuarioContextoDados);
 
         if (!string.IsNullOrEmpty(createDTO.IdDespesaAgrupadora))
         {
@@ -43,7 +48,7 @@ public class DespesaService : IDespesaService
 
         await _repository.Add(despesa);
 
-        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(despesa.Mes, despesa.Ano, _usuarioLogado.Id);
+        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(despesa.Mes, despesa.Ano, _usuarioLogado.IdContextoDados);
 
         ResultDespesaDTO rendimentoDTO = ObterDespesaDTO(despesa, reportAcumulado);
 
@@ -52,6 +57,10 @@ public class DespesaService : IDespesaService
 
     public async Task<Result<ResultDespesaDTO>> Atualizar(UpdateDespesaDTO updateDTO)
     {
+        // Verificar permissão em modo compartilhado
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure<ResultDespesaDTO>(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
         var despesa = await _repository.GetById(updateDTO.Id);
 
         if (despesa == null)
@@ -83,7 +92,7 @@ public class DespesaService : IDespesaService
 
         await AtualizarDespesaAgrupadoraCasoNecessario(despesa);
 
-        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(despesa.Mes, despesa.Ano, _usuarioLogado.Id);
+        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(despesa.Mes, despesa.Ano, _usuarioLogado.IdContextoDados);
 
         ResultDespesaDTO rendimentoDTO = ObterDespesaDTO(despesa, reportAcumulado);
 
@@ -150,6 +159,10 @@ public class DespesaService : IDespesaService
 
     public async Task<Result> Excluir(string id)
     {
+        // Verificar permissão em modo compartilhado
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
         Despesa despesa = await _repository.GetById(id);
 
         if (despesa == null)
@@ -169,7 +182,7 @@ public class DespesaService : IDespesaService
                 await _repository.Delete(filha);
             }
         }
-        
+
         await _repository.Delete(despesa);
 
         return Result.Success();
@@ -187,7 +200,7 @@ public class DespesaService : IDespesaService
 
     public async Task<List<ResultDespesaDTO>> ObterMesAno(int mes, int ano, string descricao)
     {
-        var despesas = await _repository.GetPeloMes(mes, ano, _usuarioLogado.Id, descricao);
+        var despesas = await _repository.GetPeloMes(mes, ano, _usuarioLogado.IdContextoDados, descricao);
 
         return despesas.Select(x => ObterDespesaDTO(x)).ToList();
     }
@@ -201,6 +214,10 @@ public class DespesaService : IDespesaService
 
     public async Task<Result<ResultDespesaDTO>> AtualizarValor(UpdateValorTransacaoDTO updateValorTransacaoDTO)
     {
+        // Verificar permissão em modo compartilhado
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure<ResultDespesaDTO>(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
         var despesa = await _repository.GetById(updateValorTransacaoDTO.Id);
 
         if (despesa == null)
@@ -220,7 +237,7 @@ public class DespesaService : IDespesaService
 
         await AtualizarDespesaAgrupadoraCasoNecessario(despesa);
 
-        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(despesa.Mes, despesa.Ano, _usuarioLogado.Id);
+        var reportAcumulado = await _acumuladoMensalReportRepository.Obter(despesa.Mes, despesa.Ano, _usuarioLogado.IdContextoDados);
 
         return Result.Success(ObterDespesaDTO(despesa, reportAcumulado));
     }

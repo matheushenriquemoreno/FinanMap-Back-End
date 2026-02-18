@@ -1,5 +1,6 @@
 ﻿using Application.DTOs;
 using Application.Interfaces;
+using Domain.Compartilhamento.Entity;
 using Domain.Entity;
 using Domain.Enum;
 using Domain.Login.Interfaces;
@@ -20,10 +21,14 @@ namespace Application.Implementacoes
 
         public async Task<Result<ResultCategoriaDTO>> Adicionar(CreateCategoriaDTO categoriaDTO)
         {
-            if (_categoriaRepository.CategoriaJaExiste(categoriaDTO.Nome, _usuarioLogado.Id, categoriaDTO.Tipo.Value))
+            // Verificar permissão em modo compartilhado
+            if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+                return Result.Failure<ResultCategoriaDTO>(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
+            if (_categoriaRepository.CategoriaJaExiste(categoriaDTO.Nome, _usuarioLogado.IdContextoDados, categoriaDTO.Tipo.Value))
                 return Result.Failure<ResultCategoriaDTO>(Error.Validation("Não e possivel criar categorias duplicadas!"));
 
-            var categoria = new Categoria(categoriaDTO.Nome, categoriaDTO.Tipo.Value, _usuarioLogado.Id);
+            var categoria = new Categoria(categoriaDTO.Nome, categoriaDTO.Tipo.Value, _usuarioLogado.IdContextoDados);
 
             categoria = await _categoriaRepository.Add(categoria);
 
@@ -32,6 +37,10 @@ namespace Application.Implementacoes
 
         public async Task<Result<ResultCategoriaDTO>> Atualizar(UpdateCategoriaDTO categoriaDTO)
         {
+            // Verificar permissão em modo compartilhado
+            if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+                return Result.Failure<ResultCategoriaDTO>(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
             var categoria = await _categoriaRepository.GetById(categoriaDTO.Id);
 
             if (categoria is null)
@@ -46,6 +55,10 @@ namespace Application.Implementacoes
 
         public async Task<Result> Excluir(string id)
         {
+            // Verificar permissão em modo compartilhado
+            if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+                return Result.Failure(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
             var categoria = await _categoriaRepository.GetById(id);
 
             if (categoria is null)
@@ -61,7 +74,7 @@ namespace Application.Implementacoes
 
         public async Task<Result<List<ResultCategoriaDTO>>> ObterCategoria(TipoCategoria tipoCategoria, string nome)
         {
-            var categorias = await _categoriaRepository.GetCategorias(tipoCategoria, nome, _usuarioLogado.Id);
+            var categorias = await _categoriaRepository.GetCategorias(tipoCategoria, nome, _usuarioLogado.IdContextoDados);
 
             return Result.Success(categorias.Select(ResultCategoriaDTO.Mapear).ToList());
         }

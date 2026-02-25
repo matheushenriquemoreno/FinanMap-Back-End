@@ -4,11 +4,18 @@ namespace Domain.Entity
 {
     public class Despesa : Transacao, IClone<Despesa>
     {
-        public string IdDespesaAgrupadora {  get; set; }
+        public string IdDespesaAgrupadora { get; set; }
         public Despesa Agrupadora { get; set; }
 
         public bool? DespesaAgrupadora { get; protected set; }
         public int? QuantidadeRegistros { get; protected set; } = 0;
+
+        // Campos para recorrência e parcelamento
+        public string DespesaOrigemId { get; set; }
+        public bool IsParcelado { get; set; }
+        public bool IsRecorrente { get; set; }
+        public int? ParcelaAtual { get; set; }
+        public int? TotalParcelas { get; set; }
 
         public Despesa(int ano, int mes, string descricao, decimal valor, Categoria categoria, Usuario usuario)
             : base(ano, mes, descricao, valor, categoria, usuario)

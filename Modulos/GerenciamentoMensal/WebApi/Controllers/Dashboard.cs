@@ -10,13 +10,12 @@ public static class Dashboard
         var group = app.MapGroup("/api/dashboard");
 
         group.MapGet("/resumo", async (
-            [FromQuery] int mesInicial,
-            [FromQuery] int mesFinal,
-            [FromQuery] int ano,
+            [FromQuery] string dataInicial,
+            [FromQuery] string dataFinal,
             IDashboardService service) =>
         {
 
-            var result = await service.ObterResumoFinanceiro(mesInicial, mesFinal, ano);
+            var result = await service.ObterResumoFinanceiro(dataInicial, dataFinal);
             return result.MapResult();
         })
         .WithName("ObterResumoFinanceiro")
@@ -27,12 +26,11 @@ public static class Dashboard
         });
 
         group.MapGet("/evolucao", async (
-            [FromQuery] int mesInicial,
-            [FromQuery] int mesFinal,
-            [FromQuery] int ano,
+            [FromQuery] string dataInicial,
+            [FromQuery] string dataFinal,
             IDashboardService service) =>
         {
-            var result = await service.ObterEvolucaoPeriodo(mesInicial, mesFinal, ano);
+            var result = await service.ObterEvolucaoPeriodo(dataInicial, dataFinal);
             return result.MapResult();
         })
         .WithName("ObterEvolucaoPeriodo")
@@ -43,13 +41,12 @@ public static class Dashboard
         });
 
         group.MapGet("/categorias", async (
-            [FromQuery] int mesInicial,
-            [FromQuery] int mesFinal,
-            [FromQuery] int ano,
+            [FromQuery] string dataInicial,
+            [FromQuery] string dataFinal,
             [FromQuery] string? tipo,
             IDashboardService service) =>
         {
-            var result = await service.ObterDistribuicaoCategorias(mesInicial, mesFinal, ano, tipo);
+            var result = await service.ObterDistribuicaoCategorias(dataInicial, dataFinal, tipo);
             return result.MapResult();
         })
         .WithName("ObterDistribuicaoCategorias")

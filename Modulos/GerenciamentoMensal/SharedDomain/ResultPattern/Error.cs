@@ -23,6 +23,9 @@ public class Error
     public static Error NotFound(string message) =>
         new Error(message, TypeError.NotFound);
 
+    public static Error Forbidden(string message) =>
+        new Error(message, TypeError.Forbidden);
+
     public static Error Exception(Exception ex) =>
             new Error($"{ex}, {ex.InnerException}", TypeError.Exception);
 
@@ -40,4 +43,7 @@ public enum TypeError
 
     // Erro para quando uma Exception for lancada
     Exception = 3,
+
+    // Erro para quando o usuário não tem permissão
+    Forbidden = 4,
 }

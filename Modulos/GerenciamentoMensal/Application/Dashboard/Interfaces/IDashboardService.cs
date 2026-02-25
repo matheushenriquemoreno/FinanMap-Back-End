@@ -4,7 +4,7 @@ namespace Application.Dashboard.Interfaces;
 
 public interface IDashboardService
 {
-    Task<Result<ResumoFinanceiroModel>> ObterResumoFinanceiro(int mesInicial, int mesFinal, int ano);
-    Task<Result<List<EvolucaoPeriodoModel>>> ObterEvolucaoPeriodo(int mesInicial, int mesFinal, int ano);
-    Task<Result<List<CategoriaDashboardModel>>> ObterDistribuicaoCategorias(int mesInicial, int mesFinal, int ano, string? tipo);
+    Task<Result<ResumoFinanceiroModel>> ObterResumoFinanceiro(string dataInicial, string dataFinal);
+    Task<Result<List<EvolucaoPeriodoModel>>> ObterEvolucaoPeriodo(string dataInicial, string dataFinal);
+    Task<Result<List<CategoriaDashboardModel>>> ObterDistribuicaoCategorias(string dataInicial, string dataFinal, string? tipo);
 }

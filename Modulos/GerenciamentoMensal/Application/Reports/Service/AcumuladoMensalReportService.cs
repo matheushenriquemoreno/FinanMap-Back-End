@@ -32,7 +32,7 @@ namespace Application.Reports.Service
 
         public async Task<AcumuladoMensalReportDTO> ObterReport(int mes, int ano, TipoTransacao? tipoTransacao)
         {
-            var report = await _acumuladoMensalReportRepository.Obter(mes, ano, _usuarioLogado.Id);
+            var report = await _acumuladoMensalReportRepository.Obter(mes, ano, _usuarioLogado.IdContextoDados);
 
             AcumuladoMensalReportDTO reportDTO = report;
 

@@ -60,5 +60,10 @@ public static class EndpointConfiguration
             .WithTags("Compartilhamento")
             .WithOpenApi()
             .RequireAuthorization();
+
+        app.MapMetaFinanceiraEndpoints()
+            .WithTags("Metas Financeiras")
+            .WithOpenApi()
+            .RequireAuthorization();
     }
 }

@@ -55,6 +55,27 @@ public static class Despesa
         });
 
 
+        group.MapPost("/lote", async (LancarDespesaLoteDTO dto, IDespesaService service) =>
+        {
+            var result = await service.LancarDespesaEmLoteAsync(dto);
+
+            return result.MapResult();
+        });
+
+        group.MapPut("/{id:length(24)}/lote", async (string id, AtualizarLoteDespesaDTO dto, IDespesaService service) =>
+        {
+            var result = await service.AtualizarDespesaEmLoteAsync(id, dto);
+
+            return result.MapResult();
+        });
+
+        group.MapDelete("/{id:length(24)}/lote/{modificador}", async (string id, Domain.Enums.ModificadorLote modificador, IDespesaService service) =>
+        {
+            var result = await service.ExcluirDespesaEmLoteAsync(id, modificador);
+
+            return result.MapResult();
+        });
+
         group.MapDelete("/{id:length(24)}", async (string id, IDespesaService service) =>
         {
             var result = await service.Excluir(id);

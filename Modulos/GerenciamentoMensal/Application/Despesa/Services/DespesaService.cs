@@ -3,6 +3,7 @@ using Application.Interfaces;
 using Application.Shared.Transacao.DTOs;
 using Domain.Compartilhamento.Entity;
 using Domain.Entity;
+using Domain.Enums;
 using Domain.Login.Interfaces;
 using Domain.Relatorios.AcumuladoMensal;
 using Domain.Relatorios.Entity;
@@ -257,6 +258,11 @@ public class DespesaService : IDespesaService
             EhDespesaAgrupadora = despesa.DespesaAgrupadora,
             IdDespesaAgrupadora = despesa.IdDespesaAgrupadora,
             Agrupadora = despesa.Agrupadora is not null ? ObterDespesaDTO(despesa.Agrupadora) : null,
+            DespesaOrigemId = despesa.DespesaOrigemId,
+            IsRecorrente = despesa.IsRecorrente,
+            IsParcelado = despesa.IsParcelado,
+            ParcelaAtual = despesa.ParcelaAtual,
+            TotalParcelas = despesa.TotalParcelas
         };
 
         return result;
@@ -300,5 +306,262 @@ public class DespesaService : IDespesaService
     {
         despesaAgrupadora.DiminuirAgrupamento(despesa);
         await _repository.Update(despesaAgrupadora);
+    }
+
+    public async Task<Result> LancarDespesaEmLoteAsync(LancarDespesaLoteDTO dto)
+    {
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
+        if (dto.QuantidadeMeses > 24)
+            return Result.Failure(Error.Validation("A quantidade de meses para recorrência ou parcelamento não pode ser superior a 24 meses."));
+
+        Categoria categoria = await _categoriaRepository.GetById(dto.CategoriaId);
+
+        if (categoria == null)
+            return Result.Failure(Error.NotFound("Categoria informada não existe!"));
+
+        var despesas = new List<Domain.Entity.Despesa>();
+        string despesaOrigemId = Guid.NewGuid().ToString();
+
+        // Se tem agrupadora, buscar a agrupadora do mês inicial como referência
+        Despesa agrupadoaReferencia = null;
+        if (!string.IsNullOrEmpty(dto.IdDespesaAgrupadora))
+        {
+            agrupadoaReferencia = await _repository.GetById(dto.IdDespesaAgrupadora);
+            if (agrupadoaReferencia == null)
+                return Result.Failure(Error.NotFound("Despesa agrupadora não encontrada."));
+        }
+
+        int anoCorrente = dto.AnoInicial;
+        int mesCorrente = dto.MesInicial;
+
+        decimal valorParcelaNormal = dto.IsParcelado ? Math.Round(dto.ValorTotal / dto.QuantidadeMeses, 2) : dto.ValorTotal;
+        decimal valorAcumulado = 0;
+
+        for (int i = 1; i <= dto.QuantidadeMeses; i++)
+        {
+            decimal valor = valorParcelaNormal;
+
+            if (dto.IsParcelado)
+            {
+                if (i == dto.QuantidadeMeses)
+                {
+                    valor = dto.ValorTotal - valorAcumulado;
+                }
+                valorAcumulado += valor;
+            }
+
+            string descricao = dto.Descricao;
+
+            var despesa = new Despesa(anoCorrente, mesCorrente, descricao, valor, categoria, _usuarioLogado.UsuarioContextoDados)
+            {
+                DespesaOrigemId = despesaOrigemId,
+                IsParcelado = dto.IsParcelado,
+                IsRecorrente = dto.IsRecorrenteFixa,
+                ParcelaAtual = dto.IsParcelado ? i : null,
+                TotalParcelas = dto.IsParcelado ? dto.QuantidadeMeses : null
+            };
+
+            // NOVO: Vincular à agrupadora do mês correspondente
+            if (agrupadoaReferencia != null)
+            {
+                var agrupadoaDoMes = await ObterOuClonarAgrupadora(agrupadoaReferencia, anoCorrente, mesCorrente);
+
+                despesa.AdicionarDespesaAgrupadora(agrupadoaDoMes);
+                agrupadoaDoMes.MarcarDespesaComoAgrupadora();
+
+                // Atualizar o valor da agrupadora somando a nova filha
+                agrupadoaDoMes.AtualizarValor(agrupadoaDoMes.Valor + valor);
+                await _repository.Update(agrupadoaDoMes);
+            }
+
+            despesas.Add(despesa);
+
+            mesCorrente++;
+            if (mesCorrente > 12)
+            {
+                mesCorrente = 1;
+                anoCorrente++;
+            }
+        }
+
+        if (despesas.Any())
+            await _repository.InsertManyAsync(despesas);
+
+        return Result.Success();
+    }
+
+    public async Task<Result> AtualizarDespesaEmLoteAsync(string id, AtualizarLoteDespesaDTO dto)
+    {
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
+        var despesaAlvo = await _repository.GetById(id);
+        if (despesaAlvo == null)
+            return Result.Failure(Error.NotFound("Despesa alvo não encontrada."));
+
+        if (string.IsNullOrEmpty(despesaAlvo.DespesaOrigemId))
+            return Result.Failure(Error.Validation("Esta despesa não faz parte de um lote."));
+
+        Categoria categoria = await _categoriaRepository.GetById(dto.NovaCategoriaId);
+        if (categoria == null)
+            return Result.Failure(Error.NotFound("Categoria não encontrada."));
+
+        IEnumerable<Domain.Entity.Despesa> loteCompleto = await _repository.GetDespesasDoLoteAsync(despesaAlvo.DespesaOrigemId);
+        IEnumerable<Domain.Entity.Despesa> despesasParaAtualizar = loteCompleto;
+
+        if (dto.Modificador == ModificadorLote.ApenasEsta)
+        {
+            despesasParaAtualizar = loteCompleto.Where(d => d.Id == despesaAlvo.Id);
+        }
+        else if (dto.Modificador == ModificadorLote.EstaEProximas)
+        {
+            if (despesaAlvo.IsParcelado)
+                despesasParaAtualizar = loteCompleto.Where(d => d.ParcelaAtual >= despesaAlvo.ParcelaAtual);
+            else
+                despesasParaAtualizar = loteCompleto.Where(d => d.Ano > despesaAlvo.Ano || (d.Ano == despesaAlvo.Ano && d.Mes >= despesaAlvo.Mes));
+        }
+
+        foreach (var despesa in despesasParaAtualizar)
+        {
+            if (despesa.IsParcelado)
+            {
+                despesa.Descricao = $"{dto.NovaDescricao} ({despesa.ParcelaAtual}/{despesa.TotalParcelas})";
+                despesa.AtualizarValor(dto.NovoValor);
+            }
+            else
+            {
+                despesa.Descricao = dto.NovaDescricao;
+                despesa.AtualizarValor(dto.NovoValor);
+            }
+
+            despesa.PreencherCategoria(categoria);
+        }
+
+        await _repository.UpdateManyAsync(despesasParaAtualizar);
+
+        // Recalcular o valor de cada agrupadora afetada
+        var agrupadorasAfetadas = new HashSet<string>();
+        foreach (var despesa in despesasParaAtualizar)
+        {
+            if (despesa.EstaAgrupada())
+                agrupadorasAfetadas.Add(despesa.IdDespesaAgrupadora);
+        }
+
+        foreach (var idAgrupadora in agrupadorasAfetadas)
+        {
+            var agrupadora = await _repository.GetById(idAgrupadora);
+            if (agrupadora != null)
+            {
+                var valorTotal = await _repository.GetValorTotalDespesasDaAgrupadora(idAgrupadora);
+                if (agrupadora.Valor < valorTotal)
+                {
+                    agrupadora.AtualizarValor(valorTotal);
+                    await _repository.Update(agrupadora);
+                }
+            }
+        }
+
+        return Result.Success();
+    }
+
+    public async Task<Result> ExcluirDespesaEmLoteAsync(string id, ModificadorLote modificador)
+    {
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
+        var despesaAlvo = await _repository.GetById(id);
+        if (despesaAlvo == null)
+            return Result.Failure(Error.NotFound("Despesa alvo não encontrada."));
+
+        if (string.IsNullOrEmpty(despesaAlvo.DespesaOrigemId))
+            return Result.Failure(Error.Validation("Esta despesa não faz parte de um lote."));
+
+        IEnumerable<Domain.Entity.Despesa> loteCompleto = await _repository.GetDespesasDoLoteAsync(despesaAlvo.DespesaOrigemId);
+        IEnumerable<Domain.Entity.Despesa> despesasParaExcluir = loteCompleto;
+
+        if (modificador == ModificadorLote.ApenasEsta)
+        {
+            despesasParaExcluir = loteCompleto.Where(d => d.Id == despesaAlvo.Id);
+        }
+        else if (modificador == ModificadorLote.EstaEProximas)
+        {
+            if (despesaAlvo.IsParcelado)
+                despesasParaExcluir = loteCompleto.Where(d => d.ParcelaAtual >= despesaAlvo.ParcelaAtual);
+            else
+                despesasParaExcluir = loteCompleto.Where(d => d.Ano > despesaAlvo.Ano || (d.Ano == despesaAlvo.Ano && d.Mes >= despesaAlvo.Mes));
+        }
+
+        // Coletar as agrupadoras que precisam ser atualizadas antes da exclusão
+        var agrupadorasParaAtualizar = new Dictionary<string, decimal>();
+        foreach (var despesa in despesasParaExcluir)
+        {
+            if (despesa.EstaAgrupada())
+            {
+                if (!agrupadorasParaAtualizar.ContainsKey(despesa.IdDespesaAgrupadora))
+                    agrupadorasParaAtualizar[despesa.IdDespesaAgrupadora] = 0;
+
+                agrupadorasParaAtualizar[despesa.IdDespesaAgrupadora] += despesa.Valor;
+            }
+        }
+
+        await _repository.DeleteManyAsync(despesasParaExcluir);
+
+        // Atualizar as agrupadoras
+        foreach (var agrupadoraAtualizar in agrupadorasParaAtualizar)
+        {
+            var agrupadora = await _repository.GetById(agrupadoraAtualizar.Key);
+            if (agrupadora != null)
+            {
+                // Como não temos a entidade despesa em si (já foi excluída), 
+                // para cada ocorrência deduzimos o agrupamento
+                foreach (var despesaExcluida in despesasParaExcluir.Where(x => x.IdDespesaAgrupadora == agrupadoraAtualizar.Key))
+                {
+                    agrupadora.DiminuirAgrupamento(despesaExcluida);
+                }
+                await _repository.Update(agrupadora);
+            }
+        }
+
+        return Result.Success();
+    }
+
+    private async Task<Despesa> ObterOuClonarAgrupadora(Despesa agrupadoaReferencia, int ano, int mes)
+    {
+        // Caso 1: A agrupadora é do próprio mês que estamos criando
+        if (agrupadoaReferencia.Ano == ano && agrupadoaReferencia.Mes == mes)
+            return agrupadoaReferencia;
+
+        // Caso 2: Buscar agrupadora existente no mês/ano alvo
+        var agrupadorasNoMes = await _repository.GetWhere(
+            x => x.Ano == ano
+                 && x.Mes == mes
+                 && x.Descricao == agrupadoaReferencia.Descricao
+                 && x.CategoriaId == agrupadoaReferencia.CategoriaId
+                 && x.UsuarioId == agrupadoaReferencia.UsuarioId);
+
+        var agrupadoaExistente = agrupadorasNoMes.FirstOrDefault(x => x.EhAgrupadora()
+            || x.Descricao == agrupadoaReferencia.Descricao);
+
+        if (agrupadoaExistente != null)
+            return agrupadoaExistente;
+
+        // Caso 3: Clonar a agrupadora para o mês futuro
+        var clone = agrupadoaReferencia.Clone();
+        clone.Ano = ano;
+        clone.Mes = mes;
+        clone.AtualizarValor(0); // Inicia com valor zero, será incrementado pelas filhas
+        clone.MarcarDespesaComoAgrupadora();
+
+        // Limpar dados de lote da agrupadora clonada (agrupadora não faz parte de lote)
+        clone.DespesaOrigemId = null;
+        clone.IsParcelado = false;
+        clone.IsRecorrente = false;
+        clone.ParcelaAtual = null;
+        clone.TotalParcelas = null;
+
+        await _repository.Add(clone);
+        return clone;
     }
 }

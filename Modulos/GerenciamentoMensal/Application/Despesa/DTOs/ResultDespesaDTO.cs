@@ -8,6 +8,12 @@ public class ResultDespesaDTO : ResultTransacaoDTO
     public string IdDespesaAgrupadora { get; set; }
     public ResultDespesaDTO Agrupadora { get; set; }
 
+    public string DespesaOrigemId { get; set; }
+    public bool IsParcelado { get; set; }
+    public bool IsRecorrente { get; set; }
+    public int? ParcelaAtual { get; set; }
+    public int? TotalParcelas { get; set; }
+
     public string DescricaoECategoria
     {
         get

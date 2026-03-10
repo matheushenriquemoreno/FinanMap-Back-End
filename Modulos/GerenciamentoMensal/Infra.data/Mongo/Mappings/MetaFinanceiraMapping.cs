@@ -28,6 +28,7 @@ public class MetaFinanceiraMapping : IMongoMapping
             cm.MapMember(c => c.Id);
             cm.MapMember(c => c.Valor);
             cm.MapMember(c => c.Data);
+            cm.MapMember(c => c.Descricao);
             cm.MapMember(c => c.InvestimentoId);
             cm.MapMember(c => c.NomeInvestimento);
             cm.MapMember(c => c.Origem).SetSerializer(new MongoDB.Bson.Serialization.Serializers.EnumSerializer<OrigemContribuicao>(MongoDB.Bson.BsonType.String));

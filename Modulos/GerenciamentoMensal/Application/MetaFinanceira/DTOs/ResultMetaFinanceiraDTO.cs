@@ -24,6 +24,7 @@ public class ContribuicaoResultDTO
     public string Id { get; set; }
     public decimal Valor { get; set; }
     public DateTime Data { get; set; }
+    public string? Descricao { get; set; }
     public string? InvestimentoId { get; set; }
     public string? NomeInvestimento { get; set; }
     public string Origem { get; set; }

@@ -72,6 +72,16 @@ public static class MetaFinanceira
             return result.MapResult();
         });
 
+        // PUT /api/MetasFinanceiras/{id}/contribuicoes — Editar contribuição
+        group.MapPut("/{id:length(24)}/contribuicoes", async (
+            string id,
+            UpdateContribuicaoDTO dto,
+            IMetaFinanceiraService service) =>
+        {
+            var result = await service.EditarContribuicao(id, dto);
+            return result.MapResult();
+        });
+
         return group;
     }
 }

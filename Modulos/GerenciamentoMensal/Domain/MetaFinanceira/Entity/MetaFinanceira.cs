@@ -43,6 +43,7 @@ public class MetaFinanceira : EntityBase
     }
 
     public NotificacaoMeta? AdicionarContribuicao(decimal valor, DateTime data,
+                                                   string? descricao = null,
                                                    string? investimentoId = null,
                                                    string? nomeInvestimento = null)
     {
@@ -52,7 +53,7 @@ public class MetaFinanceira : EntityBase
 
         decimal percentualAntes = PercentualProgresso;
 
-        var contribuicao = new Contribuicao(valor, data)
+        var contribuicao = new Contribuicao(valor, data, descricao)
         {
             InvestimentoId = investimentoId,
             NomeInvestimento = nomeInvestimento,
@@ -67,6 +68,20 @@ public class MetaFinanceira : EntityBase
 
         // Gerar notificação de marco, se aplicável
         return GerarNotificacaoMarco(percentualAntes, percentualDepois);
+    }
+
+    public void EditarContribuicao(string contribuicaoId, decimal valor, string? descricao)
+    {
+        var contribuicao = Contribuicoes.FirstOrDefault(c => c.Id == contribuicaoId);
+        if (contribuicao == null)
+            throw new DomainValidatorException("Contribuição não encontrada.");
+
+        var validator = DomainValidator.Create();
+        validator.Validar(() => valor <= 0, "O valor da contribuição deve ser positivo.");
+        validator.LancarExceptionSePossuiErro();
+
+        contribuicao.Valor = valor;
+        contribuicao.Descricao = descricao;
     }
 
     public void RemoverContribuicao(string contribuicaoId)

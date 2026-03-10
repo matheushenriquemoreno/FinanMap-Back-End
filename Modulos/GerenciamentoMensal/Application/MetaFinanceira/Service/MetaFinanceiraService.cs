@@ -2,6 +2,7 @@ using Application.MetaFinanceira.DTOs;
 using Application.MetaFinanceira.Interface;
 using Domain.Compartilhamento.Entity;
 using Domain.Entity;
+using Domain.Exceptions;
 using Domain.Login.Interfaces;
 using Domain.MetaFinanceira.Repository;
 
@@ -109,7 +110,7 @@ public class MetaFinanceiraService : IMetaFinanceiraService
         if (meta == null)
             return Result.Failure<ResultContribuicaoDTO>(Error.NotFound("Meta financeira não encontrada."));
 
-        var notificacao = meta.AdicionarContribuicao(dto.Valor, dto.Data, dto.InvestimentoId, dto.NomeInvestimento);
+        var notificacao = meta.AdicionarContribuicao(dto.Valor, dto.Data, dto.Descricao, dto.InvestimentoId, dto.NomeInvestimento);
 
         await _repository.Update(meta);
 
@@ -141,6 +142,40 @@ public class MetaFinanceiraService : IMetaFinanceiraService
         return Result.Success();
     }
 
+    public async Task<Result<ResultContribuicaoDTO>> EditarContribuicao(string metaId, UpdateContribuicaoDTO dto)
+    {
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure<ResultContribuicaoDTO>(
+                Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
+        if (string.IsNullOrWhiteSpace(dto.ContribuicaoId))
+            return Result.Failure<ResultContribuicaoDTO>(
+                Error.Validation("O ID da contribuição é obrigatório."));
+
+        var meta = await _repository.GetById(metaId);
+        if (meta == null)
+            return Result.Failure<ResultContribuicaoDTO>(Error.NotFound("Meta financeira não encontrada."));
+
+        try
+        {
+            meta.EditarContribuicao(dto.ContribuicaoId, dto.Valor, dto.Descricao);
+        }
+        catch (DomainValidatorException ex)
+        {
+            return Result.Failure<ResultContribuicaoDTO>(Error.Validation(ex.Message));
+        }
+
+        await _repository.Update(meta);
+
+        var resultado = new ResultContribuicaoDTO
+        {
+            MetaAtualizada = MapearParaDTO(meta),
+            Notificacao = null
+        };
+
+        return Result.Success(resultado);
+    }
+
     private ResultMetaFinanceiraDTO MapearParaDTO(Domain.Entity.MetaFinanceira meta)
     {
         return new ResultMetaFinanceiraDTO
@@ -162,6 +197,7 @@ public class MetaFinanceiraService : IMetaFinanceiraService
                     Id = c.Id,
                     Valor = c.Valor,
                     Data = c.Data,
+                    Descricao = c.Descricao,
                     InvestimentoId = c.InvestimentoId,
                     NomeInvestimento = c.NomeInvestimento,
                     Origem = c.Origem.ToString()

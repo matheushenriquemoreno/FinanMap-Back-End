@@ -11,6 +11,7 @@ public interface IMetaFinanceiraService
     Task<List<ResultMetaFinanceiraDTO>> ObterTodas();
     Task<ResumoMetasDTO> ObterResumo();
     Task<Result<ResultContribuicaoDTO>> AdicionarContribuicao(string metaId, ContribuicaoDTO dto);
+    Task<Result<ResultContribuicaoDTO>> EditarContribuicao(string metaId, UpdateContribuicaoDTO dto);
     Task<Result> RemoverContribuicao(string metaId, string contribuicaoId);
 }
 

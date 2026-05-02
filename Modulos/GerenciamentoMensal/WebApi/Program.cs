@@ -4,6 +4,7 @@ using Domain.Login.Interfaces;
 using Infra;
 using Infra.Autenticacao;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using WebApi.Configs;
@@ -108,5 +109,27 @@ app.UseHttpsRedirection();
 
 app.MapPublicEndpoints();
 app.MapProtectedEndpoints();
+
+app.MapHealthChecks("/healthcheck", new HealthCheckOptions
+{
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var response = new
+        {
+            status = report.Status.ToString(),
+            totalDuration = report.TotalDuration.ToString(),
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                exception = e.Value.Exception?.Message,
+                duration = e.Value.Duration.ToString()
+            })
+        };
+        await context.Response.WriteAsJsonAsync(response);
+    }
+});
 
 app.Run();

@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using Application.Email.Interfaces;
 using Application.Login.Interfaces;
 using Domain.Repository;
@@ -10,6 +10,7 @@ using Infra.Email;
 using Infra.MediaTrConfigure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Resend;
 
 namespace Infra;
 
@@ -20,7 +21,16 @@ public static class Setup
         services.AddMemoryCache();
 
         services.AddScoped<IServiceJWT, ServiceJWT>();
-        services.AddScoped<IProvedorEmail, SmtpGmailProvedor>();
+        
+        // Configuração do Resend (HTTP API para envio de e-mails)
+        services.AddOptions();
+        services.AddHttpClient<ResendClient>();
+        services.Configure<ResendClientOptions>(o =>
+        {
+            o.ApiToken = Infra.Configure.Env.EmailSettings.ApiKey;
+        });
+        services.AddTransient<IResend, ResendClient>();
+        services.AddScoped<IProvedorEmail, ResendEmailProvedor>();
 
         services.RegisterApplication(Assembly.Load("Application"));
         services.RegisterRepository(assemblyInterfaces: Assembly.Load("Domain"), assemblyImplementations: Assembly.Load("Infra"));

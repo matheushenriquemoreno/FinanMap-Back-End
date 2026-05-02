@@ -1,4 +1,4 @@
-﻿using Application.Email.Interfaces;
+using Application.Email.Interfaces;
 using Application.Login.DTOs;
 using Application.Login.Interfaces;
 using Domain.Entity;
@@ -104,13 +104,20 @@ public class LoginService : ILoginService
             if (refreshToken == null)
                 return Result.Failure<ResultLoginDTO>(Error.NotFound(MessageRefreshTokenInvalido));
 
-            // Deleta o refresh token usado (rotation)
-            await _refreshTokenRepository.Delete(refreshToken);
-
             if (refreshToken.EstaExpirado())
+            {
+                // Fire-and-forget: deleta token expirado sem bloquear a resposta
+                _ = _refreshTokenRepository.Delete(refreshToken);
                 return Result.Failure<ResultLoginDTO>(Error.NotFound(MessageRefreshTokenInvalido));
+            }
 
-            var usuario = await _usuarioRepository.GetById(refreshToken.UsuarioId);
+            // Paraleliza: deleta o token usado (rotation) + busca o usuário simultaneamente
+            var deleteTask = _refreshTokenRepository.Delete(refreshToken);
+            var usuarioTask = _usuarioRepository.GetById(refreshToken.UsuarioId);
+
+            await Task.WhenAll(deleteTask, usuarioTask);
+
+            var usuario = usuarioTask.Result;
 
             if (usuario is null)
                 return Result.Failure<ResultLoginDTO>(Error.NotFound(MessageRefreshTokenInvalido));
@@ -150,9 +157,13 @@ public class LoginService : ILoginService
 
     private async Task<ResultLoginDTO> GerarTokensParaUsuario(Usuario usuario)
     {
+        // Gera JWT (CPU-bound, sem I/O) antes de ir ao banco
         var tokenAcess = _serviceJWT.CriarToken(usuario);
         var novoRefreshToken = Domain.Login.Entity.RefreshToken.Create(usuario.Id);
+
+        // Persiste o novo refresh token
         await _refreshTokenRepository.Add(novoRefreshToken);
+
         return new ResultLoginDTO(tokenAcess, novoRefreshToken.Token, usuario.Nome);
     }
 

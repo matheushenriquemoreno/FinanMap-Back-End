@@ -45,8 +45,8 @@ services:
       ASPNETCORE_Kestrel__Certificates__Default__Password: SuperSecretPassword
       ASPNETCORE_Kestrel__Certificates__Default__Path: /https/aspnetapp.pfx
       MONGO_URL: "mongodb://teste:123456@mongodb:27017"
-      Email_SMTP: ""
-      Password_SMTP: ""
+      RESEND_API_KEY: ""
+      RESEND_FROM_EMAIL: "FinanMap <noreply@devmoreno.online>"
       JWT_KEY: ""
       JWT_ISSUER: ""
       JWT_AUDIENCE: ""

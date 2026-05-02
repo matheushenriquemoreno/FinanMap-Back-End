@@ -1,7 +1,7 @@
-﻿namespace Infra.Configure.Env;
+namespace Infra.Configure.Env;
 
 public class EmailSettings
 {
-    public static string Email => "Email_SMTP".GetEnvironmentVariableOrThrow();
-    public static string Password => "Password_SMTP".GetEnvironmentVariableOrThrow();
+    public static string ApiKey => "RESEND_API_KEY".GetEnvironmentVariableOrThrow();
+    public static string EmailRemetente => "RESEND_FROM_EMAIL".GetEnvironmentVariableOrThrow();
 }

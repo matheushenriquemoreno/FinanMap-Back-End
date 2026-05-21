@@ -31,10 +31,14 @@
 **Validation:** `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln` passou com sucesso em 2026-05-21 após resolver o conflito de namespace em `CustoFixoLembreteService` e adicionar `using WebApi` no `Program.cs`.
 
 ## Phase 3 -- Envio de E-mail: Templates HTML e integracao com Resend
-- [ ] Task 1: Criar HTML gerador de lembrete.
-- [ ] Task 2: Criar template de referencia.
-- [ ] Task 3: Criar service de e-mail de custo fixo.
-- [ ] Task 4: Integrar envio real ao processador.
+- [x] Task 1: Criar HTML gerador de lembrete.
+- [x] Task 2: Criar template de referencia.
+- [x] Task 3: Criar service de e-mail de custo fixo.
+- [x] Task 4: Integrar envio real ao processador.
+
+**Status: completed**
+
+**Validation:** `dotnet build` compilado com sucesso e `dotnet format` executado sem erros na solução. Rastreabilidade de requisitos validada.
 
 ## Phase 4 -- Opt-out Global e Polimento para Producao
 - [ ] Task 1: Criar endpoint PUT de configuracao de custos fixos.

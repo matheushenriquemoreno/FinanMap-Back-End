@@ -21,7 +21,7 @@ public static class Setup
         services.AddMemoryCache();
 
         services.AddScoped<IServiceJWT, ServiceJWT>();
-        
+
         // Configuração do Resend (HTTP API para envio de e-mails)
         services.AddOptions();
         services.AddHttpClient<ResendClient>();

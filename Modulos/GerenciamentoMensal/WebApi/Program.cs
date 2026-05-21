@@ -38,16 +38,16 @@ builder.Services.AddAuthentication(
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(JWTModel.SecretKey)),
 
-            ValidateIssuer = true, 
-            ValidIssuer = JWTModel.Issuer,  
+            ValidateIssuer = true,
+            ValidIssuer = JWTModel.Issuer,
 
-            ValidateAudience = true, 
-            ValidAudience = JWTModel.Audience, 
+            ValidateAudience = true,
+            ValidAudience = JWTModel.Audience,
 
             ValidateLifetime = true,
             RequireExpirationTime = true,
-            ClockSkew = TimeSpan.Zero 
-   
+            ClockSkew = TimeSpan.Zero
+
         };
         options.Events = new JwtBearerEvents
         {

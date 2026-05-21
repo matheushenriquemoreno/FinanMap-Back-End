@@ -4,6 +4,9 @@ using Domain.Enum;
 using Domain.Repository;
 using Domain.Compartilhamento.Repository;
 using Microsoft.Extensions.Logging;
+using Application.Email.Interfaces;
+using Application.Email.DTOs;
+using System.Linq;
 
 namespace Application.CustoFixo.Service;
 
@@ -13,6 +16,7 @@ public class CustoFixoLembreteService : ICustoFixoLembreteService
     private readonly IUsuarioRepository _usuarioRepository;
     private readonly ICompartilhamentoRepository _compartilhamentoRepository;
     private readonly ICustoFixoLembreteHistoricoRepository _historicoRepository;
+    private readonly ICustoFixoEmailService _custoFixoEmailService;
     private readonly ILogger<CustoFixoLembreteService> _logger;
 
     public CustoFixoLembreteService(
@@ -20,12 +24,14 @@ public class CustoFixoLembreteService : ICustoFixoLembreteService
         IUsuarioRepository usuarioRepository,
         ICompartilhamentoRepository compartilhamentoRepository,
         ICustoFixoLembreteHistoricoRepository historicoRepository,
+        ICustoFixoEmailService custoFixoEmailService,
         ILogger<CustoFixoLembreteService> logger)
     {
         _custoFixoRepository = custoFixoRepository;
         _usuarioRepository = usuarioRepository;
         _compartilhamentoRepository = compartilhamentoRepository;
         _historicoRepository = historicoRepository;
+        _custoFixoEmailService = custoFixoEmailService;
         _logger = logger;
     }
 
@@ -109,21 +115,37 @@ public class CustoFixoLembreteService : ICustoFixoLembreteService
                 continue;
             }
 
-            // SIMULAÇÃO DE ENVIO DE E-MAIL
-            var nomesCustos = string.Join(", ", custosDoUsuario.Select(c => c.Nome));
-            _logger.LogInformation("[SIMULAÇÃO ENVIO EMAIL] Lembrete do tipo {Tipo} enviado para {Email} ({Nome}). Vencimento: {DataVencimento}. Custos Fixos: {Custos}",
-                tipo, usuario.Email, usuario.Nome, dataReferencia.ToString("yyyy-MM-dd"), nomesCustos);
+            // Envio de e-mail real
+            int diasRestantes = tipo == TipoLembrete.DiaDoVencimento ? 0 : 3;
+            var itensEmail = custosDoUsuario
+                .Select(c => new CustoFixoLembreteItem(c.Nome, diasRestantes))
+                .ToList();
 
-            // Registrar idempotência
-            var historico = new CustoFixoLembreteHistorico(usuarioId, dataReferencia.Date, tipo);
-            try
+            _logger.LogInformation("Enviando lembrete de custo fixo real ({Tipo}) para {Email} ({Nome}). Vencimento: {DataVencimento}.",
+                tipo, usuario.Email, usuario.Nome, dataReferencia.ToString("yyyy-MM-dd"));
+
+            var resultadoEnvio = await _custoFixoEmailService.EnviarLembreteAsync(usuario.Email, usuario.Nome, itensEmail, tipo);
+
+            if (resultadoEnvio.IsSucess)
             {
-                await _historicoRepository.RegistrarEnvioAsync(historico);
-                _logger.LogInformation("Registrada idempotência de lembrete do tipo {Tipo} na data {DataVencimento} para o usuário {UsuarioId}.", tipo, dataReferencia.ToString("yyyy-MM-dd"), usuarioId);
+                _logger.LogInformation("Lembrete do tipo {Tipo} enviado com sucesso para {Email}.", tipo, usuario.Email);
+
+                // Registrar idempotência apenas em caso de sucesso no envio do e-mail
+                var historico = new CustoFixoLembreteHistorico(usuarioId, dataReferencia.Date, tipo);
+                try
+                {
+                    await _historicoRepository.RegistrarEnvioAsync(historico);
+                    _logger.LogInformation("Registrada idempotência de lembrete do tipo {Tipo} na data {DataVencimento} para o usuário {UsuarioId}.", tipo, dataReferencia.ToString("yyyy-MM-dd"), usuarioId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Falha ao registrar idempotência para o usuário {UsuarioId} na data {DataVencimento}. Possível duplicidade de thread prevenida.", usuarioId, dataReferencia.ToString("yyyy-MM-dd"));
+                }
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogWarning(ex, "Falha ao registrar idempotência para o usuário {UsuarioId} na data {DataVencimento}. Possível duplicidade de thread prevenida.", usuarioId, dataReferencia.ToString("yyyy-MM-dd"));
+                _logger.LogError("Falha ao enviar e-mail de lembrete do tipo {Tipo} para {Email}. Erro: {ErroMessage}. Idempotência NÃO registrada para permitir retry na próxima execução.",
+                    tipo, usuario.Email, resultadoEnvio.Error?.Message);
             }
         }
     }

@@ -1,0 +1,217 @@
+using System.Text;
+using Application.Email.DTOs;
+using Domain.Enum;
+
+namespace Application.Email.Htmls;
+
+public static class CustoFixoLembreteHtmls
+{
+    private static readonly string TemplateBase = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lembrete de Vencimento - FinanMap</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #f4f6f9;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid #eef2f6;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 20px;
+            margin-bottom: 25px;
+        }
+        .logo {
+            font-size: 26px;
+            font-weight: 700;
+            color: #0f172a;
+            margin: 0;
+            letter-spacing: -0.5px;
+        }
+        .tagline {
+            color: #64748b;
+            font-size: 13px;
+            margin: 4px 0 0 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        h2 {
+            color: #1e293b;
+            font-size: 18px;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        p {
+            color: #475569;
+            font-size: 15px;
+            line-height: 1.6;
+            margin: 0 0 20px 0;
+        }
+        .alert-box {
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 500;
+            margin-bottom: 25px;
+        }
+        .alert-hoje {
+            background-color: #fffbeb;
+            border-left: 4px solid #d97706;
+            color: #b45309;
+        }
+        .alert-antecedencia {
+            background-color: #f0f9ff;
+            border-left: 4px solid #0284c7;
+            color: #0369a1;
+        }
+        .custos-container {
+            margin-bottom: 25px;
+        }
+        .custo-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 14px 18px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .custo-info {
+            display: flex;
+            align-items: center;
+        }
+        .custo-icon {
+            font-size: 20px;
+            margin-right: 12px;
+        }
+        .custo-nome {
+            font-weight: 600;
+            color: #0f172a;
+            font-size: 15px;
+        }
+        .badge {
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 12px;
+            border-radius: 9999px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .badge-hoje {
+            background-color: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fee2e2;
+        }
+        .badge-antecedencia {
+            background-color: #f0fdf4;
+            color: #16a34a;
+            border: 1px solid #dcfce7;
+        }
+        .footer {
+            margin-top: 30px;
+            border-top: 1px solid #f1f5f9;
+            padding-top: 20px;
+            font-size: 12px;
+            color: #94a3b8;
+            text-align: center;
+            line-height: 1.5;
+        }
+        .footer a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="logo">FinanMap</h1>
+            <p class="tagline">Mapeando suas finanças, mês a mês</p>
+        </div>
+
+        <h2>Olá, @nomeUsuario!</h2>
+        
+        <div class="alert-box @classeAlerta">
+            @mensagemAlerta
+        </div>
+
+        <div class="custos-container">
+            @itensHtml
+        </div>
+
+        <p>Organize o pagamento para evitar multas e juros. Mantenha seu planejamento financeiro em dia!</p>
+
+        <div class="footer">
+            Você está recebendo este e-mail porque cadastrou custos fixos com lembretes no FinanMap.<br>
+            Se não desejar mais receber estas notificações, você pode desativá-las a qualquer momento acessando as configurações do seu perfil no aplicativo.<br>
+            <span style="display: block; margin-top: 10px; font-weight: 500;">Este é um e-mail automático, por favor não responda.</span>
+        </div>
+    </div>
+</body>
+</html>
+""";
+
+    public static string ObterHtmlLembrete(string nomeUsuario, List<CustoFixoLembreteItem> itens, TipoLembrete tipo)
+    {
+        string classeAlerta;
+        string mensagemAlerta;
+        string classeBadge;
+        string textoBadge;
+        string custoIcone;
+
+        if (tipo == TipoLembrete.DiaDoVencimento)
+        {
+            classeAlerta = "alert-hoje";
+            mensagemAlerta = "⚠️ <strong>Atenção:</strong> Você tem custos fixos que <strong>vencem hoje</strong>!";
+            classeBadge = "badge-hoje";
+            textoBadge = "Vence hoje";
+            custoIcone = "📅";
+        }
+        else
+        {
+            classeAlerta = "alert-antecedencia";
+            mensagemAlerta = "📅 <strong>Lembrete:</strong> Você tem custos fixos com vencimento em <strong>3 dias</strong>.";
+            classeBadge = "badge-antecedencia";
+            textoBadge = "Vence em 3 dias";
+            custoIcone = "🔔";
+        }
+
+        var itensBuilder = new StringBuilder();
+        foreach (var item in itens)
+        {
+            itensBuilder.AppendLine($"""
+            <div class="custo-card">
+                <div class="custo-info">
+                    <span class="custo-icon">{custoIcone}</span>
+                    <span class="custo-nome">{item.Nome}</span>
+                </div>
+                <span class="badge {classeBadge}">{textoBadge}</span>
+            </div>
+            """);
+        }
+
+        return TemplateBase
+            .Replace("@nomeUsuario", nomeUsuario)
+            .Replace("@classeAlerta", classeAlerta)
+            .Replace("@mensagemAlerta", mensagemAlerta)
+            .Replace("@itensHtml", itensBuilder.ToString());
+    }
+}

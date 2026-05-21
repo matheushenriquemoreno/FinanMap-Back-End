@@ -4,5 +4,5 @@ namespace Application.Interface;
 
 public interface IServiceUsuario
 {
-   UsuarioDTO ObterUsuarioLogado();
+    UsuarioDTO ObterUsuarioLogado();
 }

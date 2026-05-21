@@ -21,6 +21,8 @@ public class CustoFixoLembreteBackgroundService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await Task.Yield(); // Garantir que o método seja assíncrono desde o início 
+
         _logger.LogInformation("Background Service de Lembretes de Custos Fixos inicializado.");
 
         while (!stoppingToken.IsCancellationRequested)

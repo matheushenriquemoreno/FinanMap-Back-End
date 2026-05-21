@@ -105,6 +105,7 @@ O Custos Fixos é uma funcionalidade do FinanMap que permite ao usuário cadastr
 - **Histórico de envio é controle interno**: Não há exposição do histórico de lembretes na interface do usuário.
 - **Infraestrutura de e-mail existente**: O backend já possui `IProvedorEmail` e `ResendEmailProvedor`; o envio de lembretes deve usar essa infraestrutura.
 - **MongoDB e padrão de repositories**: O backend usa MongoDB com repositories por entidade e mappings com índices criados na inicialização.
+- **Performance e Carregamento de Dados**: O job de lembretes deve ser otimizado para evitar carga em memória (N+1 e excesso de dados) de custos fixos de usuários que tenham o opt-out global de e-mails ativo, resolvendo filtragens a nível de consulta.
 - **Conteúdo mínimo no e-mail**: Nome do custo fixo e quantos dias faltam, sem valores financeiros.
 - **Fuso horário fixo**: O processamento de lembretes usa `America/Sao_Paulo`.
 

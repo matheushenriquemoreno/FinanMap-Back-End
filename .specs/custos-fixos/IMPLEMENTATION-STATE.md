@@ -15,16 +15,20 @@
 **Validation:** `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln` passou em 2026-05-21. `dotnet format --verify-no-changes` passou para os arquivos da feature; a verificacao global ainda aponta whitespace legado fora do escopo desta fase.
 
 ## Phase 2 -- Processador de Lembretes: Background Service com idempotencia
-- [ ] Task 1: Criar enum `TipoLembrete`.
-- [ ] Task 2: Criar entidade `CustoFixoLembreteHistorico`.
-- [ ] Task 3: Criar repository de historico.
-- [ ] Task 4: Criar mapping do historico com indice unico e TTL.
-- [ ] Task 5: Implementar repository de historico.
-- [ ] Task 6: Buscar custos fixos ativos por dia de vencimento.
-- [ ] Task 7: Adicionar opt-out global em `Usuario`.
-- [ ] Task 8: Criar processador de lembretes.
-- [ ] Task 9: Criar BackgroundService.
-- [ ] Task 10: Registrar HostedService.
+- [x] Task 1: Criar enum `TipoLembrete`.
+- [x] Task 2: Criar entidade `CustoFixoLembreteHistorico`.
+- [x] Task 3: Criar repository de historico.
+- [x] Task 4: Criar mapping do historico com indice unico e TTL.
+- [x] Task 5: Implementar repository de historico.
+- [x] Task 6: Buscar custos fixos ativos por dia de vencimento.
+- [x] Task 7: Adicionar opt-out global em `Usuario`.
+- [x] Task 8: Criar processador de lembretes.
+- [x] Task 9: Criar BackgroundService.
+- [x] Task 10: Registrar HostedService.
+
+**Status: completed**
+
+**Validation:** `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln` passou com sucesso em 2026-05-21 após resolver o conflito de namespace em `CustoFixoLembreteService` e adicionar `using WebApi` no `Program.cs`.
 
 ## Phase 3 -- Envio de E-mail: Templates HTML e integracao com Resend
 - [ ] Task 1: Criar HTML gerador de lembrete.

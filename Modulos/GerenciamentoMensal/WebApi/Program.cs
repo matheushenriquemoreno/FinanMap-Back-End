@@ -12,6 +12,7 @@ using WebApi.Configs.ExecptionHandler;
 using WebApi.Controllers;
 using WebApi.Controlles;
 using WebApi.Interceptor;
+using WebApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -65,6 +66,7 @@ builder.Services.AddOpenApi();
 builder.Services.RegistrarDependencias();
 
 builder.Services.AddScoped<IUsuarioLogado, UsuarioLogado>();
+builder.Services.AddHostedService<CustoFixoLembreteBackgroundService>();
 
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddExceptionHandler<AutenticacaoExecptionHandler>();

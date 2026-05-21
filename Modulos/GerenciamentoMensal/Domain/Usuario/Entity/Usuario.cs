@@ -1,4 +1,4 @@
-﻿using Domain.Validator;
+using Domain.Validator;
 using SharedDomain.Validator;
 
 namespace Domain.Entity
@@ -7,6 +7,7 @@ namespace Domain.Entity
     {
         public string Nome { get; set; }
         public string Email { get; set; }
+        public bool ReceberNotificacoesCustosFixos { get; set; } = true;
 
         public Usuario(string nome, string email)
         {

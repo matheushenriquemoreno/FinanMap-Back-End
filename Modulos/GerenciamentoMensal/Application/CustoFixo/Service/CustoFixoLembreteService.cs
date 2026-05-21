@@ -2,7 +2,6 @@ using Application.CustoFixo.Interfaces;
 using Domain.Entity;
 using Domain.Enum;
 using Domain.Repository;
-using Domain.Compartilhamento.Repository;
 using Microsoft.Extensions.Logging;
 using Application.Email.Interfaces;
 using Application.Email.DTOs;
@@ -14,7 +13,6 @@ public class CustoFixoLembreteService : ICustoFixoLembreteService
 {
     private readonly ICustoFixoRepository _custoFixoRepository;
     private readonly IUsuarioRepository _usuarioRepository;
-    private readonly ICompartilhamentoRepository _compartilhamentoRepository;
     private readonly ICustoFixoLembreteHistoricoRepository _historicoRepository;
     private readonly ICustoFixoEmailService _custoFixoEmailService;
     private readonly ILogger<CustoFixoLembreteService> _logger;
@@ -22,14 +20,12 @@ public class CustoFixoLembreteService : ICustoFixoLembreteService
     public CustoFixoLembreteService(
         ICustoFixoRepository custoFixoRepository,
         IUsuarioRepository usuarioRepository,
-        ICompartilhamentoRepository compartilhamentoRepository,
         ICustoFixoLembreteHistoricoRepository historicoRepository,
         ICustoFixoEmailService custoFixoEmailService,
         ILogger<CustoFixoLembreteService> logger)
     {
         _custoFixoRepository = custoFixoRepository;
         _usuarioRepository = usuarioRepository;
-        _compartilhamentoRepository = compartilhamentoRepository;
         _historicoRepository = historicoRepository;
         _custoFixoEmailService = custoFixoEmailService;
         _logger = logger;
@@ -95,16 +91,6 @@ public class CustoFixoLembreteService : ICustoFixoLembreteService
             if (!usuario.ReceberNotificacoesCustosFixos)
             {
                 _logger.LogInformation("Usuário {Nome} ({UsuarioId}) possui opt-out global ativo. Ignorando envio de lembretes.", usuario.Nome, usuarioId);
-                continue;
-            }
-
-            var compartilhamentosComoConvidado = await _compartilhamentoRepository.ObterPorConvidadoId(usuarioId);
-            bool ehConvidadoAtivo = compartilhamentosComoConvidado != null &&
-                                    compartilhamentosComoConvidado.Any(c => c.Status == Domain.Compartilhamento.Entity.StatusConvite.Aceito);
-
-            if (ehConvidadoAtivo)
-            {
-                _logger.LogInformation("Usuário {Nome} ({UsuarioId}) é um convidado em uma conta compartilhada. Ignorando envio de lembretes.", usuario.Nome, usuarioId);
                 continue;
             }
 

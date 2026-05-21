@@ -48,49 +48,100 @@ public class CustoFixoLembreteService : ICustoFixoLembreteService
 
     private async Task ProcessarParaDataReferencia(DateTime dataReferencia, TipoLembrete tipo)
     {
-        int diaVencimentoBuscado = dataReferencia.Day;
-        bool ehUltimoDiaDoMes = dataReferencia.Day == DateTime.DaysInMonth(dataReferencia.Year, dataReferencia.Month);
+        var usuarioIdsComNotificacao = await ObterUsuariosParaNotificacaoAsync(dataReferencia);
+        if (!usuarioIdsComNotificacao.Any()) return;
 
+        var custosCandidatos = await ObterCustosParaUsuariosAsync(usuarioIdsComNotificacao, dataReferencia);
+        if (!custosCandidatos.Any()) return;
+
+        var custosAgrupadosPorUsuario = custosCandidatos.GroupBy(x => x.UsuarioId);
+        var usuariosDict = await ObterDicionarioUsuariosAsync(usuarioIdsComNotificacao);
+
+        await ProcessarEnvioDeLembretesAsync(custosAgrupadosPorUsuario, usuariosDict, dataReferencia, tipo);
+    }
+
+    private async Task<List<string>> ObterUsuariosParaNotificacaoAsync(DateTime dataReferencia)
+    {
+        int diaVencimentoBuscado = dataReferencia.Day;
+        bool ehUltimoDiaDoMes = diaVencimentoBuscado == DateTime.DaysInMonth(dataReferencia.Year, dataReferencia.Month);
+
+        var usuarioIdsCandidatos = new List<string>();
+
+        if (ehUltimoDiaDoMes)
+        {
+            for (int dia = diaVencimentoBuscado; dia <= 31; dia++)
+            {
+                var ids = await _custoFixoRepository.GetUsuarioIdsPorDiaVencimento(dia);
+                usuarioIdsCandidatos.AddRange(ids);
+            }
+        }
+        else
+        {
+            var ids = await _custoFixoRepository.GetUsuarioIdsPorDiaVencimento(diaVencimentoBuscado);
+            usuarioIdsCandidatos.AddRange(ids);
+        }
+
+        usuarioIdsCandidatos = usuarioIdsCandidatos.Distinct().ToList();
+
+        if (!usuarioIdsCandidatos.Any())
+        {
+            _logger.LogInformation("Nenhum custo fixo ativo encontrado com vencimento no dia {Dia}.", diaVencimentoBuscado);
+            return new List<string>();
+        }
+
+        var usuarioIdsComNotificacao = await _usuarioRepository.FiltrarUsuariosComNotificacaoAtiva(usuarioIdsCandidatos);
+        
+        if (!usuarioIdsComNotificacao.Any())
+        {
+            _logger.LogInformation("Todos os donos de custos fixos do dia {Dia} desativaram as notificações globais.", diaVencimentoBuscado);
+        }
+
+        return usuarioIdsComNotificacao;
+    }
+
+    private async Task<List<Domain.Entity.CustoFixo>> ObterCustosParaUsuariosAsync(List<string> usuarioIds, DateTime dataReferencia)
+    {
+        int diaVencimentoBuscado = dataReferencia.Day;
+        bool ehUltimoDiaDoMes = diaVencimentoBuscado == DateTime.DaysInMonth(dataReferencia.Year, dataReferencia.Month);
         var custosCandidatos = new List<Domain.Entity.CustoFixo>();
 
         if (ehUltimoDiaDoMes)
         {
-            // Se for o último dia do mês, além do dia buscado, pegamos qualquer dia de vencimento maior (29, 30, 31)
             for (int dia = diaVencimentoBuscado; dia <= 31; dia++)
             {
-                var custosDia = await _custoFixoRepository.GetCustosFixosAtivosPorDiaVencimento(dia);
+                var custosDia = await _custoFixoRepository.GetCustosFixosPorUsuariosEDiaVencimento(usuarioIds, dia);
                 custosCandidatos.AddRange(custosDia);
             }
         }
         else
         {
-            var custosDia = await _custoFixoRepository.GetCustosFixosAtivosPorDiaVencimento(diaVencimentoBuscado);
+            var custosDia = await _custoFixoRepository.GetCustosFixosPorUsuariosEDiaVencimento(usuarioIds, diaVencimentoBuscado);
             custosCandidatos.AddRange(custosDia);
         }
 
-        if (custosCandidatos == null || !custosCandidatos.Any())
-        {
-            _logger.LogInformation("Nenhum custo fixo ativo encontrado com vencimento no dia {Dia} (Tipo: {Tipo})", diaVencimentoBuscado, tipo);
-            return;
-        }
+        return custosCandidatos;
+    }
 
-        var custosAgrupadosPorUsuario = custosCandidatos.GroupBy(x => x.UsuarioId);
+    private async Task<Dictionary<string, Usuario>> ObterDicionarioUsuariosAsync(List<string> usuarioIds)
+    {
+        var usuarios = await _usuarioRepository.GetByIds(usuarioIds);
+        return usuarios?.ToDictionary(x => x.Id) ?? new Dictionary<string, Usuario>();
+    }
 
-        foreach (var grupo in custosAgrupadosPorUsuario)
+    private async Task ProcessarEnvioDeLembretesAsync(
+        IEnumerable<IGrouping<string, Domain.Entity.CustoFixo>> custosAgrupados, 
+        Dictionary<string, Usuario> usuariosDict,
+        DateTime dataReferencia, 
+        TipoLembrete tipo)
+    {
+        foreach (var grupo in custosAgrupados)
         {
             var usuarioId = grupo.Key;
             var custosDoUsuario = grupo.ToList();
 
-            var usuario = await _usuarioRepository.GetById(usuarioId);
-            if (usuario == null)
+            if (!usuariosDict.TryGetValue(usuarioId, out var usuario) || usuario == null)
             {
                 _logger.LogWarning("Usuário {UsuarioId} dono de custos fixos não foi encontrado no banco de dados.", usuarioId);
-                continue;
-            }
-
-            if (!usuario.ReceberNotificacoesCustosFixos)
-            {
-                _logger.LogInformation("Usuário {Nome} ({UsuarioId}) possui opt-out global ativo. Ignorando envio de lembretes.", usuario.Nome, usuarioId);
                 continue;
             }
 
@@ -101,38 +152,39 @@ public class CustoFixoLembreteService : ICustoFixoLembreteService
                 continue;
             }
 
-            // Envio de e-mail real
-            int diasRestantes = tipo == TipoLembrete.DiaDoVencimento ? 0 : 3;
-            var itensEmail = custosDoUsuario
-                .Select(c => new CustoFixoLembreteItem(c.Nome, diasRestantes))
-                .ToList();
+            await EnviarERegistrarLembreteAsync(usuario, custosDoUsuario, dataReferencia, tipo);
+        }
+    }
 
-            _logger.LogInformation("Enviando lembrete de custo fixo real ({Tipo}) para {Email} ({Nome}). Vencimento: {DataVencimento}.",
-                tipo, usuario.Email, usuario.Nome, dataReferencia.ToString("yyyy-MM-dd"));
+    private async Task EnviarERegistrarLembreteAsync(Usuario usuario, List<Domain.Entity.CustoFixo> custos, DateTime dataReferencia, TipoLembrete tipo)
+    {
+        int diasRestantes = tipo == TipoLembrete.DiaDoVencimento ? 0 : 3;
+        var itensEmail = custos.Select(c => new CustoFixoLembreteItem(c.Nome, diasRestantes)).ToList();
 
-            var resultadoEnvio = await _custoFixoEmailService.EnviarLembreteAsync(usuario.Email, usuario.Nome, itensEmail, tipo);
+        _logger.LogInformation("Enviando lembrete de custo fixo real ({Tipo}) para {Email} ({Nome}). Vencimento: {DataVencimento}.",
+            tipo, usuario.Email, usuario.Nome, dataReferencia.ToString("yyyy-MM-dd"));
 
-            if (resultadoEnvio.IsSucess)
+        var resultadoEnvio = await _custoFixoEmailService.EnviarLembreteAsync(usuario.Email, usuario.Nome, itensEmail, tipo);
+
+        if (resultadoEnvio.IsSucess)
+        {
+            _logger.LogInformation("Lembrete do tipo {Tipo} enviado com sucesso para {Email}.", tipo, usuario.Email);
+
+            var historico = new CustoFixoLembreteHistorico(usuario.Id, dataReferencia.Date, tipo);
+            try
             {
-                _logger.LogInformation("Lembrete do tipo {Tipo} enviado com sucesso para {Email}.", tipo, usuario.Email);
-
-                // Registrar idempotência apenas em caso de sucesso no envio do e-mail
-                var historico = new CustoFixoLembreteHistorico(usuarioId, dataReferencia.Date, tipo);
-                try
-                {
-                    await _historicoRepository.RegistrarEnvioAsync(historico);
-                    _logger.LogInformation("Registrada idempotência de lembrete do tipo {Tipo} na data {DataVencimento} para o usuário {UsuarioId}.", tipo, dataReferencia.ToString("yyyy-MM-dd"), usuarioId);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Falha ao registrar idempotência para o usuário {UsuarioId} na data {DataVencimento}. Possível duplicidade de thread prevenida.", usuarioId, dataReferencia.ToString("yyyy-MM-dd"));
-                }
+                await _historicoRepository.RegistrarEnvioAsync(historico);
+                _logger.LogInformation("Registrada idempotência de lembrete do tipo {Tipo} na data {DataVencimento} para o usuário {UsuarioId}.", tipo, dataReferencia.ToString("yyyy-MM-dd"), usuario.Id);
             }
-            else
+            catch (Exception ex)
             {
-                _logger.LogError("Falha ao enviar e-mail de lembrete do tipo {Tipo} para {Email}. Erro: {ErroMessage}. Idempotência NÃO registrada para permitir retry na próxima execução.",
-                    tipo, usuario.Email, resultadoEnvio.Error?.Message);
+                _logger.LogWarning(ex, "Falha ao registrar idempotência para o usuário {UsuarioId} na data {DataVencimento}. Possível duplicidade de thread prevenida.", usuario.Id, dataReferencia.ToString("yyyy-MM-dd"));
             }
+        }
+        else
+        {
+            _logger.LogError("Falha ao enviar e-mail de lembrete do tipo {Tipo} para {Email}. Erro: {ErroMessage}. Idempotência NÃO registrada para permitir retry na próxima execução.",
+                tipo, usuario.Email, resultadoEnvio.Error?.Message);
         }
     }
 

@@ -53,4 +53,27 @@ public class CustoFixoRepository : RepositoryMongoBase<CustoFixo>, ICustoFixoRep
 
         return await _entityCollection.Find(filtro).ToListAsync();
     }
+
+    public async Task<List<string>> GetUsuarioIdsPorDiaVencimento(int diaVencimento)
+    {
+        var builder = Builders<CustoFixo>.Filter;
+        var filtro = builder.And(
+            builder.Eq(x => x.DiaVencimento, diaVencimento),
+            builder.Eq(x => x.Ativo, true)
+        );
+
+        return await _entityCollection.Distinct(x => x.UsuarioId, filtro).ToListAsync();
+    }
+
+    public async Task<List<CustoFixo>> GetCustosFixosPorUsuariosEDiaVencimento(List<string> usuarioIds, int diaVencimento)
+    {
+        var builder = Builders<CustoFixo>.Filter;
+        var filtro = builder.And(
+            builder.In(x => x.UsuarioId, usuarioIds),
+            builder.Eq(x => x.DiaVencimento, diaVencimento),
+            builder.Eq(x => x.Ativo, true)
+        );
+
+        return await _entityCollection.Find(filtro).ToListAsync();
+    }
 }

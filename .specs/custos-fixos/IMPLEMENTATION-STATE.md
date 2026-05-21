@@ -41,8 +41,12 @@
 **Validation:** `dotnet build` compilado com sucesso e `dotnet format` executado sem erros na solução. Rastreabilidade de requisitos validada.
 
 ## Phase 4 -- Opt-out Global e Polimento para Producao
-- [ ] Task 1: Criar endpoint PUT de configuracao de custos fixos.
-- [ ] Task 2: Criar endpoint GET de configuracao de custos fixos.
-- [ ] Task 3: Revisar logs do processador.
-- [ ] Task 4: Testar fluxo completo end-to-end.
-- [ ] Task 5: Atualizar documentacao raiz.
+- [x] Task 1: Criar endpoint PUT de configuracao de custos fixos.
+- [x] Task 2: Criar endpoint GET de configuracao de custos fixos.
+- [x] Task 3: Revisar logs do processador.
+- [x] Task 4: Testar fluxo completo end-to-end.
+- [x] Task 5: Atualizar documentacao raiz.
+
+**Status: completed**
+
+**Validation:** `dotnet build` compilado com sucesso com 0 avisos e 0 erros. `dotnet format` executado limpando warnings legados. Modificações do opt-out global integradas ao CONTEXT.md raiz. Rastreabilidade de requisitos validada.

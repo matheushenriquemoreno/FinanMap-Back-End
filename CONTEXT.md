@@ -38,3 +38,9 @@ Especialista do dominio: "Nao. Energia e um Custo Fixo. A despesa de maio pode s
 Dev: "Entao uma despesa mensal conhece o custo fixo que a originou?"
 
 Especialista do dominio: "Sim, quando ela tiver sido gerada por um custo fixo. Mas uma despesa manual continua sendo apenas uma despesa."
+
+## Funcionalidades de Custos Fixos
+
+### Processamento de Lembretes e Opt-out Global
+- **Lembretes**: Disparados 3 dias antes e no dia do vencimento do custo fixo ativo. Os envios são consolidados por e-mail para cada usuário usando fuso horário `America/Sao_Paulo` e controlados com idempotência rígida.
+- **Opt-out Global**: Controlado pelo campo `ReceberNotificacoesCustosFixos` (booleano, padrão `true`) na entidade `Usuario`. Se o usuário desativar esse campo (opt-out), nenhum lembrete de custo fixo por e-mail será enviado a ele, independente do status individual de cada custo.

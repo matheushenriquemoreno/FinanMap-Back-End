@@ -1,5 +1,8 @@
 # 📋 Refinamento — Compartilhamento de Informações Entre Contas (Back-End)
 
+> **Status**: ✅ Concluído em 2026-05-21.
+> Mantido apenas como referência histórica da implementação.
+
 > **Objetivo**: Permitir que um usuário compartilhe todas as informações do seu site (rendimentos, despesas, investimentos, dashboard, categorias) com outras contas, controlando o nível de permissão (Visualizar ou Editar), similar ao Google Docs/Sheets.
 
 ---

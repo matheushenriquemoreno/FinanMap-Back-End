@@ -1,4 +1,4 @@
-﻿using Domain.Entity;
+using Domain.Entity;
 using Infra.Data.Mongo.Config.Interface;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
@@ -14,6 +14,7 @@ public class UsuarioMapping : IMongoMapping
             cm.AutoMap();
             cm.MapMember(x => x.Email).SetIsRequired(true);
             cm.MapMember(x => x.Nome).SetIsRequired(true);
+            cm.MapMember(x => x.ReceberNotificacoesCustosFixos).SetDefaultValue(true);
         });
     }
 }

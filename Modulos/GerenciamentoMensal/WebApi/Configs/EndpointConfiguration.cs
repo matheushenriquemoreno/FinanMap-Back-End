@@ -65,5 +65,10 @@ public static class EndpointConfiguration
             .WithTags("Metas Financeiras")
             .WithOpenApi()
             .RequireAuthorization();
+
+        app.MapCustoFixoEndpoints()
+            .WithTags("Custos Fixos")
+            .WithOpenApi()
+            .RequireAuthorization();
     }
 }

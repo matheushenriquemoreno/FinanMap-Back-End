@@ -12,6 +12,7 @@ using WebApi.Configs.ExecptionHandler;
 using WebApi.Controllers;
 using WebApi.Controlles;
 using WebApi.Interceptor;
+using WebApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,16 +38,16 @@ builder.Services.AddAuthentication(
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(JWTModel.SecretKey)),
 
-            ValidateIssuer = true, 
-            ValidIssuer = JWTModel.Issuer,  
+            ValidateIssuer = true,
+            ValidIssuer = JWTModel.Issuer,
 
-            ValidateAudience = true, 
-            ValidAudience = JWTModel.Audience, 
+            ValidateAudience = true,
+            ValidAudience = JWTModel.Audience,
 
             ValidateLifetime = true,
             RequireExpirationTime = true,
-            ClockSkew = TimeSpan.Zero 
-   
+            ClockSkew = TimeSpan.Zero
+
         };
         options.Events = new JwtBearerEvents
         {
@@ -65,6 +66,7 @@ builder.Services.AddOpenApi();
 builder.Services.RegistrarDependencias();
 
 builder.Services.AddScoped<IUsuarioLogado, UsuarioLogado>();
+builder.Services.AddHostedService<CustoFixoLembreteBackgroundService>();
 
 builder.Services.AddExceptionHandler<DomainExceptionHandler>();
 builder.Services.AddExceptionHandler<AutenticacaoExecptionHandler>();

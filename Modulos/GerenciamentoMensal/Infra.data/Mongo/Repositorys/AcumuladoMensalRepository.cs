@@ -28,7 +28,7 @@ namespace Infra.Data.Mongo.Repositorys
             var filtroDespesa = new List<FilterDefinition<Despesa>>();
             filtroDespesa.Add(Builders<Despesa>.Filter.Eq(x => x.IdDespesaAgrupadora, null));
             var totalDespesa = ObterValorMes(mes, ano, idUsuario, _despesaCollection, filtroDespesa);
-            
+
             var totalInvestimento = ObterValorMes(mes, ano, idUsuario, _investimentoCollection);
 
             await Task.WhenAll(totalrendimento, totalDespesa, totalInvestimento);
@@ -63,7 +63,7 @@ namespace Infra.Data.Mongo.Repositorys
 
             return result?.Total ?? 0;
         }
-        
+
         private static FilterDefinition<T> FiltrosMesAno<T>(int mes, int ano, string idUsuario) where T : Transacao
         {
             return Builders<T>.Filter.And(

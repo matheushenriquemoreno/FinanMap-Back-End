@@ -50,3 +50,12 @@
 **Status: completed**
 
 **Validation:** `dotnet build` compilado com sucesso com 0 avisos e 0 erros. `dotnet format` executado limpando warnings legados. Modificações do opt-out global integradas ao CONTEXT.md raiz. Rastreabilidade de requisitos validada.
+
+## Bugfix -- Compartilhamento no Envio de Lembretes
+- [x] Task 1: Remover validação que impedia o envio de lembretes para usuários convidados em contas compartilhadas.
+- [x] Task 2: Remover dependência do `ICompartilhamentoRepository` em `CustoFixoLembreteService`.
+
+**Status: completed**
+
+**Validation:** O projeto compilou com sucesso (`dotnet build`) e as alterações foram commitadas.
+

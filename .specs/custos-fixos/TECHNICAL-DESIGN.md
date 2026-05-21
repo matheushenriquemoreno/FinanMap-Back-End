@@ -152,7 +152,7 @@ graph TD
 ## Security Considerations
 
 - **Proteção de Rotas M2M**: Não é necessário expor endpoint para iniciar processamento, mitigando ataques. Apenas o Ping Externo que já não tem regra de negócio pode ser exposto caso não haja uso de um `/health` genérico.
-- **Isolamento**: O backend validará a autorização do token JWT ao inserir Custos Fixos, garantindo vinculação apenas com o usuário dono, além de garantir o bloqueio para e-mails de usuários convidados de conta compartilhada.
+- **Isolamento**: O backend validará a autorização do token JWT ao inserir Custos Fixos, garantindo vinculação apenas com o usuário dono.
 
 ## Monitoring & Observability
 

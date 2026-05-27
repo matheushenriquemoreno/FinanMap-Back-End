@@ -15,8 +15,11 @@ public class CustoFixoMapping : IMongoMapping
         BsonClassMap.TryRegisterClassMap<CustoFixo>(classMap =>
         {
             classMap.AutoMap();
+            classMap.SetIgnoreExtraElements(true);
             classMap.MapMember(m => m.UsuarioId).SetSerializer(new StringSerializer(BsonType.ObjectId));
-            classMap.MapMember(m => m.CategoriaId).SetSerializer(new StringSerializer(BsonType.ObjectId));
+            classMap.MapMember(m => m.CategoriaId)
+                .SetSerializer(new StringSerializer(BsonType.ObjectId))
+                .SetIgnoreIfNull(true);
         });
 
         var mongoDatabase = mongoClient.GetDatabase(MongoDBSettings.DataBaseName);

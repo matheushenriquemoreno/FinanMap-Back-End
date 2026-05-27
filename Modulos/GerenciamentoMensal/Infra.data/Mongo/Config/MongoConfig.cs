@@ -40,6 +40,8 @@ public static class MongoConfig
                     var instancia = Activator.CreateInstance(mapping) as IMongoMapping;
                     instancia?.RegisterMap(mongoClient);
                 }
+
+                Console.WriteLine("Mapping finalizado com sucesso.");
             }
             catch (Exception ex)
             {

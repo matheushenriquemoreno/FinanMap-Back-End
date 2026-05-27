@@ -25,6 +25,10 @@ public class CustoFixoLembreteBackgroundService : BackgroundService
 
         _logger.LogInformation("Background Service de Lembretes de Custos Fixos inicializado.");
 
+        // Atraso estratégico para garantir que o Task.Run do MongoConfig (mapeamentos BsonClassMap) finalize
+        // antes de realizar qualquer consulta, evitando Auto-Mapping indesejado com StringSerializer.
+        await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try

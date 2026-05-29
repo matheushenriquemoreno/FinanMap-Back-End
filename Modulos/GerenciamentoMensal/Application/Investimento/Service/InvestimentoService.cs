@@ -5,6 +5,7 @@ using Application.MetaFinanceira.Interface;
 using Application.Shared.Transacao.DTOs;
 using Domain.Compartilhamento.Entity;
 using Domain.Entity;
+using Domain.Enum;
 using Domain.Login.Interfaces;
 using Domain.Relatorios.AcumuladoMensal;
 using Domain.Relatorios.Entity;
@@ -86,12 +87,15 @@ public class InvestimentoService : IInvestimentoService
         if (investimento == null)
             return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Investimento informado não existe!"));
 
-        Categoria categoria = await _categoriaRepository.GetById(updateDTO.CategoriaId);
+        if (!PertenceAoContexto(investimento))
+            return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Investimento informado não existe!"));
 
-        if (categoria == null)
-            return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Categoria informada não existe!"));
+        var categoriaResult = await ObterCategoriaParaAtualizacao(updateDTO.CategoriaId, investimento.CategoriaId, TipoCategoria.Investimento);
 
-        investimento.Atualizar(updateDTO.Descricao, updateDTO.Valor, categoria);
+        if (categoriaResult.IsFailure)
+            return Result.Failure<ResultInvestimentoDTO>(categoriaResult.Error);
+
+        investimento.Atualizar(updateDTO.Descricao, updateDTO.Valor, categoriaResult.Value);
 
         await _investimentoRepository.Update(investimento);
 
@@ -144,6 +148,9 @@ public class InvestimentoService : IInvestimentoService
         if (investimento == null)
             return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Investimento informado não existe!"));
 
+        if (!PertenceAoContexto(investimento))
+            return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Investimento informado não existe!"));
+
         investimento.AtualizarValor(updateValorTransacaoDTO.Valor);
 
         await _investimentoRepository.Update(investimento);
@@ -168,5 +175,27 @@ public class InvestimentoService : IInvestimentoService
         };
 
         return result;
+    }
+
+    private async Task<Result<Categoria>> ObterCategoriaParaAtualizacao(string categoriaIdInformada, string categoriaIdAtual, TipoCategoria tipoEsperado)
+    {
+        var categoriaId = string.IsNullOrWhiteSpace(categoriaIdInformada)
+            ? categoriaIdAtual
+            : categoriaIdInformada;
+
+        var categoria = await _categoriaRepository.GetById(categoriaId);
+
+        if (categoria == null || categoria.UsuarioId != _usuarioLogado.IdContextoDados)
+            return Result.Failure<Categoria>(Error.NotFound("Categoria informada não existe!"));
+
+        if (categoria.Tipo != tipoEsperado)
+            return Result.Failure<Categoria>(Error.Validation("Categoria informada inválida para investimento."));
+
+        return Result.Success(categoria);
+    }
+
+    private bool PertenceAoContexto(Investimento investimento)
+    {
+        return investimento.UsuarioId == _usuarioLogado.IdContextoDados;
     }
 }

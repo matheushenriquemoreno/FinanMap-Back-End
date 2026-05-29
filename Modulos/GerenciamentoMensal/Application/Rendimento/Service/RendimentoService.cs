@@ -3,6 +3,7 @@ using Application.Interface;
 using Application.Shared.Transacao.DTOs;
 using Domain.Compartilhamento.Entity;
 using Domain.Entity;
+using Domain.Enum;
 using Domain.Login.Interfaces;
 using Domain.Relatorios.AcumuladoMensal;
 using Domain.Relatorios.Entity;
@@ -61,12 +62,15 @@ public class RendimentoService : IRendimentoService
         if (rendimento == null)
             return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Rendimento informado não existe!"));
 
-        Categoria categoria = await _categoriaRepository.GetById(updateDTO.CategoriaId);
+        if (!PertenceAoContexto(rendimento))
+            return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Rendimento informado não existe!"));
 
-        if (categoria == null)
-            return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Categoria informada não existe!"));
+        var categoriaResult = await ObterCategoriaParaAtualizacao(updateDTO.CategoriaId, rendimento.CategoriaId, TipoCategoria.Rendimento);
 
-        rendimento.Atualizar(updateDTO.Descricao, updateDTO.Valor, categoria);
+        if (categoriaResult.IsFailure)
+            return Result.Failure<ResultRendimentoDTO>(categoriaResult.Error);
+
+        rendimento.Atualizar(updateDTO.Descricao, updateDTO.Valor, categoriaResult.Value);
 
         await _rendimentoRepository.Update(rendimento);
 
@@ -123,6 +127,9 @@ public class RendimentoService : IRendimentoService
         if (rendimento == null)
             return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Rendimento informado não existe!"));
 
+        if (!PertenceAoContexto(rendimento))
+            return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Rendimento informado não existe!"));
+
         rendimento.AtualizarValor(updateValorTransacaoDTO.Valor);
 
         await _rendimentoRepository.Update(rendimento);
@@ -149,6 +156,28 @@ public class RendimentoService : IRendimentoService
         };
 
         return result;
+    }
+
+    private async Task<Result<Categoria>> ObterCategoriaParaAtualizacao(string categoriaIdInformada, string categoriaIdAtual, TipoCategoria tipoEsperado)
+    {
+        var categoriaId = string.IsNullOrWhiteSpace(categoriaIdInformada)
+            ? categoriaIdAtual
+            : categoriaIdInformada;
+
+        var categoria = await _categoriaRepository.GetById(categoriaId);
+
+        if (categoria == null || categoria.UsuarioId != _usuarioLogado.IdContextoDados)
+            return Result.Failure<Categoria>(Error.NotFound("Categoria informada não existe!"));
+
+        if (categoria.Tipo != tipoEsperado)
+            return Result.Failure<Categoria>(Error.Validation("Categoria informada inválida para rendimento."));
+
+        return Result.Success(categoria);
+    }
+
+    private bool PertenceAoContexto(Rendimento rendimento)
+    {
+        return rendimento.UsuarioId == _usuarioLogado.IdContextoDados;
     }
     #endregion
 }

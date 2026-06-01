@@ -6,9 +6,10 @@ public class CustoFixoResponseDTO
     public string Nome { get; set; }
     public int DiaVencimento { get; set; }
     public string CategoriaId { get; set; }
+    public string CategoriaNome { get; set; }
     public bool Ativo { get; set; }
 
-    public static CustoFixoResponseDTO Mapear(Domain.Entity.CustoFixo entity)
+    public static CustoFixoResponseDTO Mapear(Domain.Entity.CustoFixo entity, string categoriaNome = null)
     {
         return new CustoFixoResponseDTO
         {
@@ -16,6 +17,7 @@ public class CustoFixoResponseDTO
             Nome = entity.Nome,
             DiaVencimento = entity.DiaVencimento,
             CategoriaId = entity.CategoriaId,
+            CategoriaNome = categoriaNome,
             Ativo = entity.Ativo
         };
     }

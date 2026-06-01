@@ -44,7 +44,7 @@ public class CustoFixoService : ICustoFixoService
 
         await _custoFixoRepository.Add(custoFixo);
 
-        return Result.Success(CustoFixoResponseDTO.Mapear(custoFixo));
+        return Result.Success(CustoFixoResponseDTO.Mapear(custoFixo, categoriaResult.Value?.Nome));
     }
 
     public async Task<Result<CustoFixoResponseDTO>> Atualizar(UpdateCustoFixoDTO updateDTO)
@@ -67,7 +67,7 @@ public class CustoFixoService : ICustoFixoService
 
         await _custoFixoRepository.Update(custoFixo);
 
-        return Result.Success(CustoFixoResponseDTO.Mapear(custoFixo));
+        return Result.Success(CustoFixoResponseDTO.Mapear(custoFixo, categoriaResult.Value?.Nome));
     }
 
     public async Task<Result> Excluir(string id)
@@ -87,8 +87,13 @@ public class CustoFixoService : ICustoFixoService
     public async Task<Result<List<CustoFixoResponseDTO>>> Listar()
     {
         var custosFixos = await _custoFixoRepository.GetByUsuarioId(_usuarioLogado.IdContextoDados);
+        var categoriasPorId = await ObterCategoriasPorId(custosFixos);
 
-        return Result.Success(custosFixos.Select(CustoFixoResponseDTO.Mapear).ToList());
+        return Result.Success(custosFixos
+            .Select(custoFixo => CustoFixoResponseDTO.Mapear(
+                custoFixo,
+                ObterNomeCategoria(custoFixo.CategoriaId, categoriasPorId)))
+            .ToList());
     }
 
     public async Task<Result<CustoFixoResponseDTO>> ObterPeloID(string id)
@@ -97,7 +102,9 @@ public class CustoFixoService : ICustoFixoService
         if (custoFixo is null)
             return Result.Failure<CustoFixoResponseDTO>(Error.NotFound("Custo fixo informado não existe!"));
 
-        return Result.Success(CustoFixoResponseDTO.Mapear(custoFixo));
+        var categoriaNome = await ObterNomeCategoria(custoFixo.CategoriaId);
+
+        return Result.Success(CustoFixoResponseDTO.Mapear(custoFixo, categoriaNome));
     }
 
     private bool PodeEditar()
@@ -115,16 +122,55 @@ public class CustoFixoService : ICustoFixoService
         return custoFixo;
     }
 
-    private async Task<Result> ValidarCategoria(string categoriaId)
+    private async Task<Result<Categoria>> ValidarCategoria(string categoriaId)
     {
         if (string.IsNullOrWhiteSpace(categoriaId))
-            return Result.Success();
+            return Result.Success<Categoria>(null);
 
         Categoria categoria = await _categoriaRepository.GetById(categoriaId);
 
         if (categoria is null || categoria.UsuarioId != _usuarioLogado.IdContextoDados || categoria.Tipo != TipoCategoria.Despesa)
-            return Result.Failure(Error.NotFound("Categoria informada não existe!"));
+            return Result.Failure<Categoria>(Error.NotFound("Categoria informada não existe!"));
 
-        return Result.Success();
+        return Result.Success(categoria);
+    }
+
+    private async Task<Dictionary<string, string>> ObterCategoriasPorId(List<Domain.Entity.CustoFixo> custosFixos)
+    {
+        var categoriaIds = custosFixos
+            .Where(custoFixo => !string.IsNullOrWhiteSpace(custoFixo.CategoriaId))
+            .Select(custoFixo => custoFixo.CategoriaId)
+            .Distinct()
+            .ToList();
+
+        if (!categoriaIds.Any())
+            return new Dictionary<string, string>();
+
+        var categorias = await _categoriaRepository.GetByIds(categoriaIds);
+
+        return categorias
+            .Where(categoria => categoria.UsuarioId == _usuarioLogado.IdContextoDados && categoria.Tipo == TipoCategoria.Despesa)
+            .ToDictionary(categoria => categoria.Id, categoria => categoria.Nome);
+    }
+
+    private async Task<string> ObterNomeCategoria(string categoriaId)
+    {
+        if (string.IsNullOrWhiteSpace(categoriaId))
+            return null;
+
+        var categoria = await _categoriaRepository.GetById(categoriaId);
+
+        if (categoria is null || categoria.UsuarioId != _usuarioLogado.IdContextoDados || categoria.Tipo != TipoCategoria.Despesa)
+            return null;
+
+        return categoria.Nome;
+    }
+
+    private static string ObterNomeCategoria(string categoriaId, Dictionary<string, string> categoriasPorId)
+    {
+        if (string.IsNullOrWhiteSpace(categoriaId))
+            return null;
+
+        return categoriasPorId.GetValueOrDefault(categoriaId);
     }
 }

@@ -1,19 +1,25 @@
 ﻿using System.Reflection;
 using Infra.Configure.Env;
 using Infra.Data.Mongo.Config.Interface;
+using Infra.Data.Mongo.Mappings;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 
 namespace Infra.Data.Mongo.Config;
 
 public static class MongoConfig
 {
-    private static void MappingAllClassMongo(this IServiceCollection services, IMongoClient mongoClient)
+    private static void MappingAllClassMongo(IMongoClient mongoClient, ILoggerFactory loggerFactory)
     {
+        var logger = loggerFactory.CreateLogger(typeof(MongoConfig).FullName!);
+
         Task.Run(() =>
         {
             try
             {
+                TransacaoMapping.ConfigureLogger(loggerFactory.CreateLogger("Infra.Data.Mongo.Mappings.TransacaoMapping"));
+
                 var assembly = Assembly.GetExecutingAssembly();
 
                 #region Mapeamento de entidades Bases
@@ -41,13 +47,11 @@ public static class MongoConfig
                     instancia?.RegisterMap(mongoClient);
                 }
 
-                Console.WriteLine("Mapping finalizado com sucesso.");
+                logger.LogInformation("Mapping do MongoDB finalizado com sucesso.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Ocorreu um erro ao registrar as classes, indexs, e configurações do Mongo DB.");
-                Console.WriteLine(ex.Message);
-                Console.WriteLine(ex.InnerException?.Message);
+                logger.LogError(ex, "Ocorreu um erro ao registrar as classes, indexes e configuracoes do MongoDB.");
             }
         });
 
@@ -57,10 +61,14 @@ public static class MongoConfig
 
     public static void ConfiguarMongoDB(this IServiceCollection services)
     {
-        IMongoClient mongoClient = new MongoClient(MongoDBSettings.ConnectionString);
+        services.AddSingleton<IMongoClient>(serviceProvider =>
+        {
+            var mongoClient = new MongoClient(MongoDBSettings.ConnectionString);
+            var loggerFactory = serviceProvider.GetRequiredService<ILoggerFactory>();
 
-        services.AddSingleton(mongoClient);
+            MappingAllClassMongo(mongoClient, loggerFactory);
 
-        services.MappingAllClassMongo(mongoClient);
+            return mongoClient;
+        });
     }
 }

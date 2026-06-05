@@ -9,6 +9,7 @@ using Domain.Login.Events;
 using Domain.Login.Repository;
 using Domain.Repository;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using SharedDomain.Validator;
 
 namespace Application.Login.Services;
@@ -21,6 +22,7 @@ public class LoginService : ILoginService
     private readonly IUsuarioEmailService _emailService;
     private readonly IServiceJWT _serviceJWT;
     private readonly IMediator _mediator;
+    private readonly ILogger<LoginService> _logger;
     private const string MessageCodigoExpirado = "Codigo informado invalido, ou expirado.";
     private const string MessageRefreshTokenInvalido = "Refresh token invalido ou expirado.";
 
@@ -30,7 +32,8 @@ public class LoginService : ILoginService
         IUsuarioEmailService emailService,
         IUsuarioRepository usuarioRepository,
         IServiceJWT serviceJWT,
-        IMediator mediator)
+        IMediator mediator,
+        ILogger<LoginService> logger)
     {
         _codigoLoginRepository = codigoLoginRepository;
         _refreshTokenRepository = refreshTokenRepository;
@@ -38,6 +41,7 @@ public class LoginService : ILoginService
         _usuarioRepository = usuarioRepository;
         _serviceJWT = serviceJWT;
         _mediator = mediator;
+        _logger = logger;
     }
 
     public async Task<Result> Login(LoginDTO login)
@@ -45,16 +49,23 @@ public class LoginService : ILoginService
         try
         {
             if (!EmailValidator.IsValidEmail(login.Email))
+            {
+                _logger.LogWarning("Tentativa de login com e-mail invalido: {Email}", login.Email);
                 return Result.Failure(Error.NotFound("E-mail invalido!"));
+            }
 
             Usuario usuario = await _usuarioRepository.GetByEmail(login.Email);
 
             if (usuario is null)
+            {
+                _logger.LogWarning("Tentativa de login para e-mail nao cadastrado: {Email}", login.Email);
                 return Result.Failure(Error.NotFound("Certifique de ter realizado o cadastro!"));
+            }
 
             var codigo = CodigoLogin.Create(usuario.Email);
 
             await _codigoLoginRepository.Add(codigo);
+            _logger.LogInformation("Codigo de login solicitado para o e-mail {Email}", usuario.Email);
 
             return await EnviarCodigoLogin(false, usuario, codigo);
         }
@@ -71,11 +82,15 @@ public class LoginService : ILoginService
             CodigoLogin codigoLogin = await _codigoLoginRepository.GetByCodigo(codigoLoginDTO.Codigo);
 
             if (codigoLogin == null)
+            {
+                _logger.LogWarning("Tentativa de validar codigo de login invalido ou expirado para o e-mail {Email}", codigoLoginDTO.Email);
                 return Result.Failure<ResultLoginDTO>(Error.NotFound(MessageCodigoExpirado));
+            }
 
             if (codigoLogin.EstaExpirado())
             {
                 await _mediator.Publish(new CodigoLoginExpiradoEvent(codigoLogin));
+                _logger.LogWarning("Tentativa de validar codigo de login expirado para o e-mail {Email}", codigoLogin.Email);
                 return Result.Failure<ResultLoginDTO>(Error.NotFound(MessageCodigoExpirado));
             }
 
@@ -84,9 +99,11 @@ public class LoginService : ILoginService
                 var usuario = await _usuarioRepository.GetByEmail(codigoLogin.Email);
                 var result = await GerarTokensParaUsuario(usuario);
                 await _codigoLoginRepository.Delete(codigoLogin);
+                _logger.LogInformation("Login realizado com sucesso para o e-mail {Email}", codigoLogin.Email);
                 return Result.Success(result);
             }
 
+            _logger.LogWarning("Tentativa de validar codigo de login invalido para o e-mail {Email}", codigoLoginDTO.Email);
             return Result.Failure<ResultLoginDTO>(Error.NotFound(MessageCodigoExpirado));
         }
         catch (Exception ex) when (ex is not DomainValidatorException)
@@ -138,11 +155,15 @@ public class LoginService : ILoginService
             Usuario usuario = await _usuarioRepository.GetByEmail(usuarioDTO.Email);
 
             if (usuario is not null)
+            {
+                _logger.LogWarning("Tentativa de cadastro com e-mail ja existente: {Email}", usuarioDTO.Email);
                 return Result.Failure(Error.Validation("E-mail invalido para cadastro!"));
+            }
 
             usuario = new Usuario(usuarioDTO.Nome, usuarioDTO.Email);
             await _usuarioRepository.Add(usuario);
             await _mediator.Publish(new UsuarioCriadoEvent(usuario));
+            _logger.LogInformation("Novo cadastro realizado para o e-mail {Email}", usuario.Email);
 
             var codigo = CodigoLogin.Create(usuario.Email);
             await _codigoLoginRepository.Add(codigo);

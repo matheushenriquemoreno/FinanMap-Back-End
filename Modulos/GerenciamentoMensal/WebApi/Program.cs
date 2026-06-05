@@ -53,7 +53,9 @@ builder.Services.AddAuthentication(
         {
             OnTokenValidated = context =>
             {
-                Console.WriteLine("Token validado com sucesso, valido ate: " + context.SecurityToken.ValidTo);
+                var loggerFactory = context.HttpContext.RequestServices.GetRequiredService<ILoggerFactory>();
+                var logger = loggerFactory.CreateLogger("JwtBearerEvents");
+                logger.LogInformation("Token validado com sucesso, valido ate: {ValidTo}", context.SecurityToken.ValidTo);
                 return Task.CompletedTask;
             }
         };

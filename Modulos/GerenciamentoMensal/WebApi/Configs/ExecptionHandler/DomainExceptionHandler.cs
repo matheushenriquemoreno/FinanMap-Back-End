@@ -6,9 +6,9 @@ namespace WebApi.Configs.ExecptionHandler
 {
     public class DomainExceptionHandler : IExceptionHandler
     {
-        private readonly ILogger<GlobalExceptionHandler> _logger;
+        private readonly ILogger<DomainExceptionHandler> _logger;
 
-        public DomainExceptionHandler(ILogger<GlobalExceptionHandler> logger)
+        public DomainExceptionHandler(ILogger<DomainExceptionHandler> logger)
         {
             _logger = logger;
         }
@@ -29,7 +29,13 @@ namespace WebApi.Configs.ExecptionHandler
             await httpContext.Response
                 .WriteAsJsonAsync(apiError, cancellationToken);
 
-            _logger.LogError("DomainValidatorException: {Message}", string.Join(",", erros));
+            _logger.LogError(
+                exception,
+                "Erro de dominio em {Method} {Path}. StatusCode: {StatusCode}. Message: {Message}",
+                httpContext.Request.Method,
+                httpContext.Request.Path,
+                StatusCodes.Status400BadRequest,
+                string.Join(",", erros));
 
             return true;
 

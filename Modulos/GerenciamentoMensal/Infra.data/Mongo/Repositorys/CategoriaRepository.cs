@@ -1,4 +1,4 @@
-﻿using System.Linq.Expressions;
+using System.Linq.Expressions;
 using System.Text.RegularExpressions;
 using Domain.Entity;
 using Domain.Enum;
@@ -85,6 +85,6 @@ public class CategoriaRepository : RepositoryMongoBase<Categoria>, ICategoriaRep
             resultFilter = builder.And(resultFilter, filtroNome);
         }
 
-        return await _entityCollection.Find(resultFilter).ToListAsync();
+        return await _entityCollection.Find(resultFilter).SortByDescending(x => x.Id).ToListAsync();
     }
 }

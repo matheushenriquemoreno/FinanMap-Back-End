@@ -52,6 +52,7 @@ public static class MongoConfig
         catch (Exception ex)
         {
             logger.LogError(ex, "Ocorreu um erro ao registrar as classes, indexes e configuracoes do MongoDB.");
+            throw;
         }
 
     }
@@ -67,5 +68,10 @@ public static class MongoConfig
 
             return mongoClient;
         });
+    }
+
+    public static void InicializarMongoDB(this IServiceProvider serviceProvider)
+    {
+        serviceProvider.GetRequiredService<IMongoClient>();
     }
 }

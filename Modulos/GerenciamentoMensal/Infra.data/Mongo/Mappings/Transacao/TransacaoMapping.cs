@@ -1,5 +1,7 @@
 ﻿using Domain.Entity;
 using Infra.Data.Mongo.Config.Interface;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
@@ -9,6 +11,13 @@ namespace Infra.Data.Mongo.Mappings;
 
 internal class TransacaoMapping : IMongoMappingClassBase
 {
+    private static ILogger _logger = NullLogger.Instance;
+
+    internal static void ConfigureLogger(ILogger logger)
+    {
+        _logger = logger;
+    }
+
     public void RegisterMap(IMongoClient mongoClient)
     {
         BsonClassMap.TryRegisterClassMap<Transacao>(cm =>
@@ -38,7 +47,7 @@ internal class TransacaoMapping : IMongoMappingClassBase
         }
         catch (Exception ex)
         {
-            Console.WriteLine(ex);
+            _logger.LogError(ex, "Erro ao criar indice da collection {CollectionName}.", collection.CollectionNamespace.CollectionName);
         }
     }
 }

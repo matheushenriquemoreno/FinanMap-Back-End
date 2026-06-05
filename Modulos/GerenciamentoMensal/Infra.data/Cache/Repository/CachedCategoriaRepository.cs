@@ -4,6 +4,7 @@ using Domain.Entity;
 using Domain.Enum;
 using Domain.Repository;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
 
 namespace Infra.Cache.Repository;
 
@@ -11,13 +12,18 @@ public class CachedCategoriaRepository : ICategoriaRepository
 {
     private readonly ICategoriaRepository _repositoryDecorate;
     private readonly IMemoryCache _memoryCache;
+    private readonly ILogger<CachedCategoriaRepository> _logger;
     private readonly MemoryCacheEntryOptions _cacheOptions;
     private static readonly ConcurrentDictionary<string, HashSet<string>> _cacheKeysFilterAllCategorias = new();
 
-    public CachedCategoriaRepository(ICategoriaRepository repositoryDecorate, IMemoryCache memoryCache)
+    public CachedCategoriaRepository(
+        ICategoriaRepository repositoryDecorate,
+        IMemoryCache memoryCache,
+        ILogger<CachedCategoriaRepository> logger)
     {
         _repositoryDecorate = repositoryDecorate;
         _memoryCache = memoryCache;
+        _logger = logger;
 
         // Configurar as opções do cache com o tempo de vida especificado
         _cacheOptions = new MemoryCacheEntryOptions()
@@ -112,12 +118,11 @@ public class CachedCategoriaRepository : ICategoriaRepository
                 }
             }
 
-            Console.WriteLine("Cache invalidados com sucesso!");
+            _logger.LogInformation("Cache de categorias invalidado com sucesso.");
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Erro ao invalidar Cache!");
-            Console.WriteLine(ex.Message);
+            _logger.LogError(ex, "Erro ao invalidar cache de categorias.");
         }
     }
 

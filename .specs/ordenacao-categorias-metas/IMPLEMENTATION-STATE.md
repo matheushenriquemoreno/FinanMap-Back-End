@@ -7,6 +7,7 @@
 - [x] ORDM-P1-03: Executar build da solucao e validar manualmente a listagem de categorias com e sem filtro por nome.
 
 ## Phase 2 -- Metas nao concluidas primeiro
-- [ ] ORDM-P2-01: Alterar `MetaFinanceiraService.ObterTodas()` para ordenar a lista carregada por `Concluida` ascendente (`false` antes de `true`) e depois por `DataCriacao` decrescente, antes de mapear para `ResultMetaFinanceiraDTO`.
-- [ ] ORDM-P2-02: Confirmar que adicionar, editar ou remover uma contribuicao muda automaticamente a posicao da meta na proxima listagem quando o valor atual cruza o valor alvo.
-- [ ] ORDM-P2-03: Executar build e validar manualmente os cenarios de meta ativa, meta concluida e meta que deixa de estar concluida apos remocao/edicao de contribuicao.
+**Status: completed**
+- [x] ORDM-P2-01: Alterar `MetaFinanceiraService.ObterTodas()` para ordenar a lista carregada por `Concluida` ascendente (`false` antes de `true`) e depois por `DataCriacao` decrescente, antes de mapear para `ResultMetaFinanceiraDTO`.
+- [x] ORDM-P2-02: Confirmar que adicionar, editar ou remover uma contribuicao muda automaticamente a posicao da meta na proxima listagem quando o valor atual cruza o valor alvo.
+- [x] ORDM-P2-03: Executar build e validar manualmente os cenarios de meta ativa, meta concluida e meta que deixa de estar concluida apos remocao/edicao de contribuicao.

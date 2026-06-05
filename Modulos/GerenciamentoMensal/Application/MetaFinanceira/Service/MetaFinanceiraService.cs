@@ -81,7 +81,11 @@ public class MetaFinanceiraService : IMetaFinanceiraService
     public async Task<List<ResultMetaFinanceiraDTO>> ObterTodas()
     {
         var metas = await _repository.ObterPorUsuario(_usuarioLogado.IdContextoDados);
-        return metas.Select(MapearParaDTO).ToList();
+        return metas
+            .OrderBy(m => m.Concluida)
+            .ThenByDescending(m => m.DataCriacao)
+            .Select(MapearParaDTO)
+            .ToList();
     }
 
     public async Task<ResumoMetasDTO> ObterResumo()

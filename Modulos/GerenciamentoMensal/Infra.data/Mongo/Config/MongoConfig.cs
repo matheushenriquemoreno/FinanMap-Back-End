@@ -14,48 +14,45 @@ public static class MongoConfig
     {
         var logger = loggerFactory.CreateLogger(typeof(MongoConfig).FullName!);
 
-        Task.Run(() =>
+        try
         {
-            try
+            TransacaoMapping.ConfigureLogger(loggerFactory.CreateLogger("Infra.Data.Mongo.Mappings.TransacaoMapping"));
+
+            logger.LogInformation("Mapping do MongoDB inicializado.");
+
+            var assembly = Assembly.GetExecutingAssembly();
+
+            #region Mapeamento de entidades Bases
+
+            var classesMapeadoras = assembly.GetTypes()
+                .Where(t => typeof(IMongoMappingClassBase).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
+                .ToList();
+
+            foreach (var mapping in classesMapeadoras)
             {
-                TransacaoMapping.ConfigureLogger(loggerFactory.CreateLogger("Infra.Data.Mongo.Mappings.TransacaoMapping"));
-
-                var assembly = Assembly.GetExecutingAssembly();
-
-                #region Mapeamento de entidades Bases
-
-                var classesMapeadoras = assembly.GetTypes()
-                    .Where(t => typeof(IMongoMappingClassBase).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
-                    .ToList();
-
-                foreach (var mapping in classesMapeadoras)
-                {
-                    var instancia = Activator.CreateInstance(mapping) as IMongoMappingClassBase;
-                    instancia?.RegisterMap(mongoClient);
-                }
-
-                #endregion
-
-                classesMapeadoras = assembly.GetTypes()
-                    .Where(t => typeof(IMongoMapping).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
-                    .ToList();
-
-
-                foreach (var mapping in classesMapeadoras)
-                {
-                    var instancia = Activator.CreateInstance(mapping) as IMongoMapping;
-                    instancia?.RegisterMap(mongoClient);
-                }
-
-                logger.LogInformation("Mapping do MongoDB finalizado com sucesso.");
+                var instancia = Activator.CreateInstance(mapping) as IMongoMappingClassBase;
+                instancia?.RegisterMap(mongoClient);
             }
-            catch (Exception ex)
+
+            #endregion
+
+            classesMapeadoras = assembly.GetTypes()
+                .Where(t => typeof(IMongoMapping).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract)
+                .ToList();
+
+
+            foreach (var mapping in classesMapeadoras)
             {
-                logger.LogError(ex, "Ocorreu um erro ao registrar as classes, indexes e configuracoes do MongoDB.");
+                var instancia = Activator.CreateInstance(mapping) as IMongoMapping;
+                instancia?.RegisterMap(mongoClient);
             }
-        });
 
-
+            logger.LogInformation("Mapping do MongoDB finalizado com sucesso.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Ocorreu um erro ao registrar as classes, indexes e configuracoes do MongoDB.");
+        }
 
     }
 

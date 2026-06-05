@@ -48,6 +48,7 @@ internal class TransacaoMapping : IMongoMappingClassBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Erro ao criar indice da collection {CollectionName}.", collection.CollectionNamespace.CollectionName);
+            throw;
         }
     }
 }

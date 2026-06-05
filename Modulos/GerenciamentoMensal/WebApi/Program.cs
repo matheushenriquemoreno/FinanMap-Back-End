@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Domain.Login.Interfaces;
 using Infra;
 using Infra.Autenticacao;
+using Infra.Data.Mongo.Config;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
@@ -94,6 +95,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+app.Services.InicializarMongoDB();
 
 app.UseCors();
 app.UseAuthentication();

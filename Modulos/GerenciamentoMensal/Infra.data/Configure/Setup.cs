@@ -42,6 +42,13 @@ public static class Setup
 
         #endregion
 
+        #region Configurando estrategia de cache para usuario
+
+        services.TryAddScoped<IUsuarioRepository, UsuarioRepository>();
+        services.Decorate<IUsuarioRepository, CachedUsuarioRepository>();
+
+        #endregion
+
         services.ConfiguarMongoDB();
         services.ConfigureMediaTR();
 

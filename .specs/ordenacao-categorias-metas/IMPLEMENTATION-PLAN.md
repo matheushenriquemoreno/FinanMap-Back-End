@@ -5,7 +5,7 @@
 | Tech Lead    | @Usuario                      |
 | Team         | Solo developer                |
 | Epic/Ticket  | Ordenacao de Categorias e Metas |
-| Status       | Draft                         |
+| Status       | Completed                         |
 | Created      | 2026-06-05                    |
 | Last Updated | 2026-06-05                    |
 

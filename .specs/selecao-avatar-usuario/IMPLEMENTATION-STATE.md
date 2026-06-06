@@ -17,13 +17,20 @@
 **Validation:** implementado sem criacao de testes automatizados, conforme solicitado. `dotnet build`, `dotnet format --verify-no-changes` nos arquivos alterados, `npm run lint`, `npm test` existente e `npm run build` passaram. A aplicacao local carregou sem erros de console ate a tela de login; a validacao autenticada do `GET /api/User` e `PUT /api/User/avatar` permanece manual.
 
 ## Phase 2 -- Catalogo completo e experiencia de selecao
-- [ ] AVTR-P2-01: Adicionar no minimo oito SVGs.
-- [ ] AVTR-P2-02: Completar e documentar o catalogo.
-- [ ] AVTR-P2-03: Criar componente reutilizavel `UserAvatar.vue`.
-- [ ] AVTR-P2-04: Substituir representacoes antigas pelo componente.
-- [ ] AVTR-P2-05: Implementar grade responsiva e acessivel.
-- [ ] AVTR-P2-06: Adicionar estados de salvamento, sucesso e falha.
-- [ ] AVTR-P2-07: Evitar consultas duplicadas e perda de estado.
+- [x] AVTR-P2-01: Adicionar no minimo oito SVGs.
+- [x] AVTR-P2-02: Completar e documentar o catalogo.
+- [x] AVTR-P2-03: Criar componente reutilizavel `UserAvatar.vue`.
+- [x] AVTR-P2-04: Substituir representacoes antigas pelo componente.
+- [x] AVTR-P2-05: Implementar grade responsiva e acessivel.
+- [x] AVTR-P2-06: Adicionar estados de salvamento, sucesso e falha.
+- [x] AVTR-P2-07: Evitar consultas duplicadas e perda de estado.
+
+**Status: completed**
+
+**Validation:** `npm test`, `npm run lint`, `npm run build`, Prettier nos arquivos alterados,
+`dotnet build` e `dotnet format --verify-no-changes` passaram. O build publicou os oito SVGs
+em `dist/spa/avatars`. A inspecao visual local autenticada ficou indisponivel porque o navegador
+interno bloqueou o acesso ao servidor local.
 
 ## Phase 3 -- Compatibilidade, verificacao e liberacao
 - [ ] AVTR-P3-01: Verificar usuarios legados no MongoDB.

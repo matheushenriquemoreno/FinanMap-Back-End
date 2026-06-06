@@ -7,7 +7,17 @@ namespace Domain.Entity
     public class Usuario : EntityBase
     {
         public const string AvatarPadrao = "avatar-01";
-        private static readonly HashSet<string> AvataresPermitidos = [AvatarPadrao, "avatar-02"];
+        private static readonly HashSet<string> AvataresPermitidos =
+        [
+            AvatarPadrao,
+            "avatar-02",
+            "avatar-03",
+            "avatar-04",
+            "avatar-05",
+            "avatar-06",
+            "avatar-07",
+            "avatar-08"
+        ];
 
         public string Nome { get; set; }
         public string Email { get; set; }

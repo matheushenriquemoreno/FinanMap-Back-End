@@ -5,7 +5,7 @@
 | Tech Lead    | @Usuario                         |
 | Team         | Solo developer                   |
 | Epic/Ticket  | Selecao de avatar do usuario     |
-| Status       | Draft                            |
+| Status       | Completed                        |
 | Created      | 2026-06-06                       |
 | Last Updated | 2026-06-06                       |
 

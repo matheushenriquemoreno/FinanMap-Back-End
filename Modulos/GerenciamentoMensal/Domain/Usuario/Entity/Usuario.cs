@@ -16,7 +16,9 @@ namespace Domain.Entity
             "avatar-05",
             "avatar-06",
             "avatar-07",
-            "avatar-08"
+            "avatar-08",
+            "avatar-09",
+            "avatar-10"
         ];
 
         public string Nome { get; set; }

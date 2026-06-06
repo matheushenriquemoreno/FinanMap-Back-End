@@ -17,7 +17,7 @@ public class UsuarioAvatarTests
 {
     [Theory]
     [InlineData("avatar-01")]
-    [InlineData("avatar-08")]
+    [InlineData("avatar-10")]
     public void AtualizarAvatar_AceitaIdentificadorDoCatalogo(string avatarId)
     {
         var usuario = CriarUsuario("usuario-id");
@@ -29,7 +29,7 @@ public class UsuarioAvatarTests
 
     [Theory]
     [InlineData("")]
-    [InlineData("avatar-09")]
+    [InlineData("avatar-11")]
     [InlineData("../avatar-01")]
     public void AtualizarAvatar_RejeitaIdentificadorForaDoCatalogo(string avatarId)
     {
@@ -86,7 +86,7 @@ public class UsuarioAvatarTests
         var repositorio = new UsuarioRepositoryFake(usuario);
         var service = new ServiceUsuario(new UsuarioLogadoFake(usuario), repositorio);
 
-        var resultado = await service.AtualizarAvatarAsync(new AtualizarAvatarDTO { AvatarId = "avatar-09" });
+        var resultado = await service.AtualizarAvatarAsync(new AtualizarAvatarDTO { AvatarId = "avatar-11" });
 
         Assert.True(resultado.IsFailure);
         Assert.Null(repositorio.UsuarioAtualizado);

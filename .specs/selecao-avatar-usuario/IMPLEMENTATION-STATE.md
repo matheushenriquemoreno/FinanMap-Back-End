@@ -34,7 +34,18 @@ interno bloqueou o acesso ao servidor local.
 
 ## Phase 3 -- Compatibilidade, verificacao e liberacao
 - [ ] AVTR-P3-01: Verificar usuarios legados no MongoDB.
-- [ ] AVTR-P3-02: Ampliar testes automatizados.
+- [x] AVTR-P3-02: Ampliar testes automatizados.
 - [ ] AVTR-P3-03: Executar regressao autenticada.
-- [ ] AVTR-P3-04: Executar builds finais e registrar evidencias.
+- [x] AVTR-P3-04: Executar builds finais e registrar evidencias.
 - [ ] AVTR-P3-05: Publicar back-end antes do front-end.
+
+**Status: in progress**
+
+**Validation:** projeto de testes adicionado ao back-end com 8 casos cobrindo catalogo,
+validacao, documento legado e isolamento do usuario autenticado em modo compartilhado.
+`dotnet test`, `dotnet build`, formatacao dos arquivos novos, `npm run lint`, `npm test`,
+`npm run build` e `npm run test:avatar:release` passaram em 2026-06-06. O
+`dotnet format --verify-no-changes` global continua apontando whitespace preexistente em
+`CustoFixoLembreteService.cs`. MongoDB real, regressao autenticada e publicacao coordenada
+dependem de acesso ao ambiente e permanecem pendentes. Evidencias detalhadas em
+`RELEASE-CHECKLIST.md`.

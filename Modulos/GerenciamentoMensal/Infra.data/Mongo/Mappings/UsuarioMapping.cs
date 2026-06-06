@@ -14,6 +14,7 @@ public class UsuarioMapping : IMongoMapping
             cm.AutoMap();
             cm.MapMember(x => x.Email).SetIsRequired(true);
             cm.MapMember(x => x.Nome).SetIsRequired(true);
+            cm.MapMember(x => x.AvatarId).SetDefaultValue(Usuario.AvatarPadrao);
             cm.MapMember(x => x.ReceberNotificacoesCustosFixos).SetDefaultValue(true);
         });
     }

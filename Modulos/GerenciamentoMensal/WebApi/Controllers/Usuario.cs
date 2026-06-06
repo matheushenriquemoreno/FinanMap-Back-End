@@ -14,6 +14,12 @@ namespace WebApi.Controllers
                 return Results.Ok(serviceUsuario.ObterUsuarioLogado());
             });
 
+            group.MapPut("/avatar", async (AtualizarAvatarDTO dto, IServiceUsuario serviceUsuario) =>
+            {
+                var result = await serviceUsuario.AtualizarAvatarAsync(dto);
+                return result.MapResult();
+            });
+
             // Mapeando a nova rota configurada para opt-out global de Custos Fixos
             var configGroup = enpointRouteBuilder.MapGroup("/api/usuarios/configuracoes/custos-fixos")
                 .WithTags("Usuario")

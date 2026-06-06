@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Application.DTOs;
 using Application.Interface;
+using Domain.Exceptions;
 using Domain.Login.Interfaces;
 using Domain.Repository;
 
@@ -29,7 +30,31 @@ namespace Application.Implementacoes
             {
                 Email = usuario.Email,
                 Nome = usuario.Nome,
+                AvatarId = usuario.AvatarId,
             };
+        }
+
+        public async Task<Result<AtualizarAvatarDTO>> AtualizarAvatarAsync(AtualizarAvatarDTO dto)
+        {
+            var usuario = await _usuarioRepository.GetById(UsuarioLogado.Id);
+
+            if (usuario == null)
+            {
+                return Result.Failure<AtualizarAvatarDTO>(Error.NotFound("Usuário não encontrado no banco de dados."));
+            }
+
+            try
+            {
+                usuario.AtualizarAvatar(dto.AvatarId);
+            }
+            catch (DomainValidatorException ex)
+            {
+                return Result.Failure<AtualizarAvatarDTO>(Error.Validation(string.Join(" ", ex.Errors)));
+            }
+
+            await _usuarioRepository.Update(usuario);
+
+            return Result.Success(new AtualizarAvatarDTO { AvatarId = usuario.AvatarId });
         }
 
         public async Task<CustoFixoConfiguracaoDTO> ObterConfiguracaoCustoFixoAsync()

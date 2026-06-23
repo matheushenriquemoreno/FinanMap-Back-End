@@ -38,6 +38,12 @@ namespace Domain.Entity
             QuantidadeRegistros++;
         }
 
+        public void DefinirQuantidadeRegistrosAgrupados(int quantidadeRegistros)
+        {
+            QuantidadeRegistros = quantidadeRegistros;
+            DespesaAgrupadora = quantidadeRegistros > 0;
+        }
+
         private void DesmarcarDespesaComoAgrupadora()
         {
             DespesaAgrupadora = false;

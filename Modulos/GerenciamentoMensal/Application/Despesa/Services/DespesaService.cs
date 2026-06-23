@@ -18,6 +18,7 @@ public class DespesaService : IDespesaService
     private readonly ICategoriaRepository _categoriaRepository;
     private readonly IAcumuladoMensalReportRepository _acumuladoMensalReportRepository;
     private readonly IUsuarioLogado _usuarioLogado;
+    private readonly DespesaAgrupamentoService _agrupamentoService;
 
     public DespesaService(IDespesaRepository repository, ICategoriaRepository categoriaRepository, IAcumuladoMensalReportRepository acumuladoMensalReportRepository, IUsuarioLogado usuarioLogado)
     {
@@ -25,6 +26,7 @@ public class DespesaService : IDespesaService
         _categoriaRepository = categoriaRepository;
         _acumuladoMensalReportRepository = acumuladoMensalReportRepository;
         _usuarioLogado = usuarioLogado;
+        _agrupamentoService = new DespesaAgrupamentoService(repository);
     }
 
     public async Task<Result<ResultDespesaDTO>> Adicionar(CreateDespesaDTO createDTO)
@@ -42,10 +44,13 @@ public class DespesaService : IDespesaService
 
         if (!string.IsNullOrEmpty(createDTO.IdDespesaAgrupadora))
         {
-            var result = await VincularDespesaAUmaAgrupadora(createDTO.IdDespesaAgrupadora, despesa);
+            var despesaAgrupadora = await _repository.GetById(createDTO.IdDespesaAgrupadora);
+            if (despesaAgrupadora == null)
+                return Result.Failure<ResultDespesaDTO>(Error.NotFound("Despesa para realizar agrupamento não existe!"));
 
-            if (result.IsFailure)
-                return Result.Failure<ResultDespesaDTO>(result.Error);
+            var contextoAgrupadora = await _agrupamentoService.CapturarContextoAsync(despesaAgrupadora.Id);
+            _agrupamentoService.Vincular(despesa, despesaAgrupadora);
+            await _agrupamentoService.SincronizarAgrupadoraComFilhasPendentesAsync(contextoAgrupadora, [despesa]);
         }
 
         await _repository.Add(despesa);
@@ -84,15 +89,20 @@ public class DespesaService : IDespesaService
                 return Result.Failure<ResultDespesaDTO>(Error.Validation($"Valor informado menor que o total das despesas agrupadas, valor total: {valorAgrupamento}"));
         }
 
+        var contextosAgrupadoras = new Dictionary<string, DespesaAgrupamentoContexto>();
+        await CapturarAgrupadoraAfetada(contextosAgrupadoras, despesa.IdDespesaAgrupadora);
+
+        var resultAgrupamento = await AtualizarAgrupamento(despesa, updateDTO, contextosAgrupadoras);
+        if (resultAgrupamento.IsFailure)
+            return Result.Failure<ResultDespesaDTO>(resultAgrupamento.Error);
+
         despesa.Descricao = updateDTO.Descricao;
         despesa.AtualizarValor(updateDTO.Valor);
         despesa.PreencherCategoria(categoria);
 
-        await AtualizarAgrupamento(despesa, updateDTO);
-
         await _repository.Update(despesa);
 
-        await AtualizarDespesaAgrupadoraCasoNecessario(despesa);
+        await SincronizarAgrupadoras(contextosAgrupadoras.Values);
 
         var reportAcumulado = await _acumuladoMensalReportRepository.Obter(despesa.Mes, despesa.Ano, _usuarioLogado.IdContextoDados);
 
@@ -101,28 +111,16 @@ public class DespesaService : IDespesaService
         return Result.Success(rendimentoDTO);
     }
 
-    private async Task AtualizarDespesaAgrupadoraCasoNecessario(Despesa despesa)
-    {
-        if (despesa.EstaAgrupada())
-        {
-            var despesaAgrupadora = await _repository.GetById(despesa.IdDespesaAgrupadora);
-
-            var valorAgrupamento = await _repository.GetValorTotalDespesasDaAgrupadora(despesa.IdDespesaAgrupadora);
-
-            despesaAgrupadora.Valor = valorAgrupamento;
-            await _repository.Update(despesaAgrupadora);
-
-            despesa.Agrupadora = despesaAgrupadora;
-        }
-    }
-
-    private async Task<Result> AtualizarAgrupamento(Despesa despesa, UpdateDespesaDTO updateDTO)
+    private async Task<Result> AtualizarAgrupamento(
+        Despesa despesa,
+        UpdateDespesaDTO updateDTO,
+        Dictionary<string, DespesaAgrupamentoContexto> contextosAgrupadoras)
     {
         // Cenario de remover vinculo com a despesa agrupadora
         if (despesa.EstaAgrupada() &&
             updateDTO.IdDespesaAgrupadora.PossuiValor() == false)
         {
-            await DesvincularDespesaDaAgrupadora(despesa, despesa.IdDespesaAgrupadora);
+            _agrupamentoService.RemoverVinculo(despesa);
             return Result.Success();
         }
 
@@ -130,11 +128,12 @@ public class DespesaService : IDespesaService
         if (updateDTO.IdDespesaAgrupadora.PossuiValor() &&
                 despesa.EstaAgrupada() == false)
         {
-            var result = await VincularDespesaAUmaAgrupadora(updateDTO.IdDespesaAgrupadora, despesa);
+            var despesaAgrupadora = await _repository.GetById(updateDTO.IdDespesaAgrupadora);
+            if (despesaAgrupadora == null)
+                return Result.Failure(Error.NotFound("Despesa para realizar agrupamento não existe!"));
 
-            if (result.IsFailure)
-                return Result.Failure(result.Error);
-
+            await CapturarAgrupadoraAfetada(contextosAgrupadoras, despesaAgrupadora.Id);
+            _agrupamentoService.Vincular(despesa, despesaAgrupadora);
             return Result.Success();
         }
 
@@ -142,14 +141,16 @@ public class DespesaService : IDespesaService
         if (updateDTO.IdDespesaAgrupadora.PossuiValor() &&
                 despesa.IdDespesaAgrupadora != updateDTO.IdDespesaAgrupadora)
         {
-            await DesvincularDespesaDaAgrupadora(despesa, despesa.IdDespesaAgrupadora);
+            _agrupamentoService.RemoverVinculo(despesa);
 
-            var result = await VincularDespesaAUmaAgrupadora(updateDTO.IdDespesaAgrupadora, despesa);
+            var despesaAgrupadora = await _repository.GetById(updateDTO.IdDespesaAgrupadora);
+            if (despesaAgrupadora == null)
+                return Result.Failure(Error.NotFound("Despesa para realizar agrupamento não existe!"));
 
-            if (result.IsFailure)
-                return Result.Failure(result.Error);
+            await CapturarAgrupadoraAfetada(contextosAgrupadoras, despesaAgrupadora.Id);
+            _agrupamentoService.Vincular(despesa, despesaAgrupadora);
 
-            return result;
+            return Result.Success();
         }
 
         return Result.Success();
@@ -168,8 +169,10 @@ public class DespesaService : IDespesaService
 
         if (despesa.EstaAgrupada())
         {
-            var despesaAgrupadora = await _repository.GetById(despesa.IdDespesaAgrupadora);
-            await RemoverVinculoAgrupadoraEhAtualizar(despesaAgrupadora, despesa);
+            var contextoAgrupadora = await _agrupamentoService.CapturarContextoAsync(despesa.IdDespesaAgrupadora);
+            await _repository.Delete(despesa);
+            await _agrupamentoService.SincronizarAgrupadoraAsync(contextoAgrupadora);
+            return Result.Success();
         }
         else if (despesa.EhAgrupadora())
         {
@@ -229,11 +232,17 @@ public class DespesaService : IDespesaService
                 return Result.Failure<ResultDespesaDTO>(Error.Validation($"Valor informado menor que o total das despesas agrupadas, valor total: {valorAgrupamento}"));
         }
 
+        var contextoAgrupadora = despesa.EstaAgrupada()
+            ? await _agrupamentoService.CapturarContextoAsync(despesa.IdDespesaAgrupadora)
+            : null;
+
         despesa.AtualizarValor(updateValorTransacaoDTO.Valor);
 
         await _repository.Update(despesa);
 
-        await AtualizarDespesaAgrupadoraCasoNecessario(despesa);
+        await _agrupamentoService.SincronizarAgrupadoraAsync(contextoAgrupadora);
+        if (contextoAgrupadora != null)
+            despesa.Agrupadora = contextoAgrupadora.Agrupadora;
 
         var reportAcumulado = await _acumuladoMensalReportRepository.Obter(despesa.Mes, despesa.Ano, _usuarioLogado.IdContextoDados);
 
@@ -265,46 +274,6 @@ public class DespesaService : IDespesaService
         return result;
     }
 
-    private async Task<Result> VincularDespesaAUmaAgrupadora(string idDespesaAgrupadora, Despesa despesa)
-    {
-        var despesaAgrupadora = await _repository.GetById(idDespesaAgrupadora);
-
-        if (despesaAgrupadora == null)
-            return Result.Failure(Error.NotFound("Despesa para realizar agrupamento não existe!"));
-
-        despesa.AdicionarDespesaAgrupadora(despesaAgrupadora);
-        despesaAgrupadora.MarcarDespesaComoAgrupadora();
-
-        var valorAgrupamento = await _repository.GetValorTotalDespesasDaAgrupadora(despesaAgrupadora.Id);
-
-        valorAgrupamento += despesa.Valor;
-
-        if (valorAgrupamento > despesaAgrupadora.Valor)
-        {
-            var diferenca = valorAgrupamento - despesaAgrupadora.Valor;
-
-            despesaAgrupadora.AtualizarValor(despesaAgrupadora.Valor + diferenca);
-        }
-
-        await _repository.Update(despesaAgrupadora);
-
-        return Result.Success();
-    }
-
-    private async Task DesvincularDespesaDaAgrupadora(Despesa despesa, string idDespesaAgrupadora)
-    {
-        despesa.RemoverDespesaAgrupadora();
-
-        var despesaAgrupadora = await _repository.GetById(idDespesaAgrupadora);
-        await RemoverVinculoAgrupadoraEhAtualizar(despesaAgrupadora, despesa);
-    }
-
-    private async Task RemoverVinculoAgrupadoraEhAtualizar(Despesa despesaAgrupadora, Despesa despesa)
-    {
-        despesaAgrupadora.DiminuirAgrupamento(despesa);
-        await _repository.Update(despesaAgrupadora);
-    }
-
     public async Task<Result> LancarDespesaEmLoteAsync(LancarDespesaLoteDTO dto)
     {
         if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
@@ -319,6 +288,7 @@ public class DespesaService : IDespesaService
             return Result.Failure(Error.NotFound("Categoria informada não existe!"));
 
         var despesas = new List<Domain.Entity.Despesa>();
+        var contextosAgrupadoras = new Dictionary<string, DespesaAgrupamentoContexto>();
         string despesaOrigemId = Guid.NewGuid().ToString();
 
         // Se tem agrupadora, buscar a agrupadora do mês inicial como referência
@@ -365,12 +335,8 @@ public class DespesaService : IDespesaService
             {
                 var agrupadoaDoMes = await ObterOuClonarAgrupadora(agrupadoaReferencia, anoCorrente, mesCorrente);
 
-                despesa.AdicionarDespesaAgrupadora(agrupadoaDoMes);
-                agrupadoaDoMes.MarcarDespesaComoAgrupadora();
-
-                // Atualizar o valor da agrupadora somando a nova filha
-                agrupadoaDoMes.AtualizarValor(agrupadoaDoMes.Valor + valor);
-                await _repository.Update(agrupadoaDoMes);
+                await CapturarAgrupadoraAfetada(contextosAgrupadoras, agrupadoaDoMes.Id);
+                _agrupamentoService.Vincular(despesa, agrupadoaDoMes);
             }
 
             despesas.Add(despesa);
@@ -385,6 +351,8 @@ public class DespesaService : IDespesaService
 
         if (despesas.Any())
             await _repository.InsertManyAsync(despesas);
+
+        await SincronizarAgrupadoras(contextosAgrupadoras.Values);
 
         return Result.Success();
     }
@@ -422,7 +390,7 @@ public class DespesaService : IDespesaService
 
         despesasParaAtualizar = despesasParaAtualizar.ToList();
 
-        var idsAgrupadorasAfetadas = new HashSet<string>();
+        var contextosAgrupadoras = new Dictionary<string, DespesaAgrupamentoContexto>();
         Despesa agrupadoraReferencia = null;
         var descricaoNormalizada = NormalizarDescricaoParcela(dto.NovaDescricao);
 
@@ -436,11 +404,13 @@ public class DespesaService : IDespesaService
 
         foreach (var despesa in despesasParaAtualizar)
         {
+            await CapturarAgrupadoraAfetada(contextosAgrupadoras, despesa.IdDespesaAgrupadora);
+
             var resultAgrupamento = await AtualizarAgrupamentoDespesaEmLote(
                 despesa,
                 dto.IdDespesaAgrupadora,
                 agrupadoraReferencia,
-                idsAgrupadorasAfetadas);
+                contextosAgrupadoras);
 
             if (resultAgrupamento.IsFailure)
                 return Result.Failure(resultAgrupamento.Error);
@@ -453,13 +423,7 @@ public class DespesaService : IDespesaService
 
         await _repository.UpdateManyAsync(despesasParaAtualizar);
 
-        foreach (var despesa in despesasParaAtualizar)
-        {
-            if (despesa.EstaAgrupada())
-                idsAgrupadorasAfetadas.Add(despesa.IdDespesaAgrupadora);
-        }
-
-        await RecalcularAgrupadoras(idsAgrupadorasAfetadas);
+        await SincronizarAgrupadoras(contextosAgrupadoras.Values);
 
         return Result.Success();
     }
@@ -468,17 +432,14 @@ public class DespesaService : IDespesaService
         Despesa despesa,
         string idDespesaAgrupadora,
         Despesa agrupadoraReferencia,
-        HashSet<string> idsAgrupadorasAfetadas)
+        Dictionary<string, DespesaAgrupamentoContexto> contextosAgrupadoras)
     {
         if (idDespesaAgrupadora == null)
             return Result.Success();
 
-        if (despesa.EstaAgrupada())
-            idsAgrupadorasAfetadas.Add(despesa.IdDespesaAgrupadora);
-
         if (idDespesaAgrupadora.PossuiValor() == false)
         {
-            await RemoverAgrupamentoDespesaEmLote(despesa, idsAgrupadorasAfetadas);
+            _agrupamentoService.RemoverVinculo(despesa);
             return Result.Success();
         }
 
@@ -486,56 +447,19 @@ public class DespesaService : IDespesaService
             return Result.Failure(Error.NotFound("Despesa agrupadora não encontrada."));
 
         var agrupadoraDoMes = await ObterOuClonarAgrupadora(agrupadoraReferencia, despesa.Ano, despesa.Mes);
+        await CapturarAgrupadoraAfetada(contextosAgrupadoras, agrupadoraDoMes.Id);
 
         if (despesa.IdDespesaAgrupadora == agrupadoraDoMes.Id)
         {
             despesa.Agrupadora = agrupadoraDoMes;
-            idsAgrupadorasAfetadas.Add(agrupadoraDoMes.Id);
             return Result.Success();
         }
 
-        await RemoverAgrupamentoDespesaEmLote(despesa, idsAgrupadorasAfetadas);
+        _agrupamentoService.RemoverVinculo(despesa);
 
-        despesa.AdicionarDespesaAgrupadora(agrupadoraDoMes);
-        despesa.Agrupadora = agrupadoraDoMes;
-        agrupadoraDoMes.MarcarDespesaComoAgrupadora();
-        idsAgrupadorasAfetadas.Add(agrupadoraDoMes.Id);
-        await _repository.Update(agrupadoraDoMes);
+        _agrupamentoService.Vincular(despesa, agrupadoraDoMes);
 
         return Result.Success();
-    }
-
-    private async Task RemoverAgrupamentoDespesaEmLote(Despesa despesa, HashSet<string> idsAgrupadorasAfetadas)
-    {
-        if (despesa.EstaAgrupada() == false)
-            return;
-
-        var idAgrupadoraAtual = despesa.IdDespesaAgrupadora;
-        var agrupadoraAtual = await _repository.GetById(idAgrupadoraAtual);
-
-        if (agrupadoraAtual != null)
-        {
-            agrupadoraAtual.DiminuirAgrupamento(despesa);
-            idsAgrupadorasAfetadas.Add(idAgrupadoraAtual);
-            await _repository.Update(agrupadoraAtual);
-        }
-
-        despesa.RemoverDespesaAgrupadora();
-        despesa.Agrupadora = null;
-    }
-
-    private async Task RecalcularAgrupadoras(IEnumerable<string> idsAgrupadoras)
-    {
-        foreach (var idAgrupadora in idsAgrupadoras.Where(x => x.PossuiValor()).Distinct())
-        {
-            var agrupadora = await _repository.GetById(idAgrupadora);
-            if (agrupadora != null)
-            {
-                var valorTotal = await _repository.GetValorTotalDespesasDaAgrupadora(idAgrupadora);
-                agrupadora.AtualizarValor(valorTotal);
-                await _repository.Update(agrupadora);
-            }
-        }
     }
 
     private static string NormalizarDescricaoParcela(string descricao)
@@ -573,38 +497,38 @@ public class DespesaService : IDespesaService
                 despesasParaExcluir = loteCompleto.Where(d => d.Ano > despesaAlvo.Ano || (d.Ano == despesaAlvo.Ano && d.Mes >= despesaAlvo.Mes));
         }
 
-        // Coletar as agrupadoras que precisam ser atualizadas antes da exclusão
-        var agrupadorasParaAtualizar = new Dictionary<string, decimal>();
+        var contextosAgrupadoras = new Dictionary<string, DespesaAgrupamentoContexto>();
         foreach (var despesa in despesasParaExcluir)
         {
             if (despesa.EstaAgrupada())
-            {
-                if (!agrupadorasParaAtualizar.ContainsKey(despesa.IdDespesaAgrupadora))
-                    agrupadorasParaAtualizar[despesa.IdDespesaAgrupadora] = 0;
-
-                agrupadorasParaAtualizar[despesa.IdDespesaAgrupadora] += despesa.Valor;
-            }
+                await CapturarAgrupadoraAfetada(contextosAgrupadoras, despesa.IdDespesaAgrupadora);
         }
 
         await _repository.DeleteManyAsync(despesasParaExcluir);
 
-        // Atualizar as agrupadoras
-        foreach (var agrupadoraAtualizar in agrupadorasParaAtualizar)
-        {
-            var agrupadora = await _repository.GetById(agrupadoraAtualizar.Key);
-            if (agrupadora != null)
-            {
-                // Como não temos a entidade despesa em si (já foi excluída), 
-                // para cada ocorrência deduzimos o agrupamento
-                foreach (var despesaExcluida in despesasParaExcluir.Where(x => x.IdDespesaAgrupadora == agrupadoraAtualizar.Key))
-                {
-                    agrupadora.DiminuirAgrupamento(despesaExcluida);
-                }
-                await _repository.Update(agrupadora);
-            }
-        }
+        await SincronizarAgrupadoras(contextosAgrupadoras.Values);
 
         return Result.Success();
+    }
+
+    private async Task CapturarAgrupadoraAfetada(
+        Dictionary<string, DespesaAgrupamentoContexto> contextosAgrupadoras,
+        string idDespesaAgrupadora)
+    {
+        if (idDespesaAgrupadora.PossuiValor() == false || contextosAgrupadoras.ContainsKey(idDespesaAgrupadora))
+            return;
+
+        var contexto = await _agrupamentoService.CapturarContextoAsync(idDespesaAgrupadora);
+        if (contexto != null)
+            contextosAgrupadoras[idDespesaAgrupadora] = contexto;
+    }
+
+    private async Task SincronizarAgrupadoras(IEnumerable<DespesaAgrupamentoContexto> contextosAgrupadoras)
+    {
+        foreach (var contexto in contextosAgrupadoras)
+        {
+            await _agrupamentoService.SincronizarAgrupadoraAsync(contexto);
+        }
     }
 
     private async Task<Despesa> ObterOuClonarAgrupadora(Despesa agrupadoaReferencia, int ano, int mes)

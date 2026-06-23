@@ -108,12 +108,8 @@ public class DespesaService : IDespesaService
 
             var valorAgrupamento = await _repository.GetValorTotalDespesasDaAgrupadora(despesa.IdDespesaAgrupadora);
 
-            if (despesaAgrupadora.Valor < valorAgrupamento)
-            {
-                despesaAgrupadora.Valor = valorAgrupamento;
-
-                await _repository.Update(despesaAgrupadora);
-            }
+            despesaAgrupadora.Valor = valorAgrupamento;
+            await _repository.Update(despesaAgrupadora);
 
             despesa.Agrupadora = despesaAgrupadora;
         }
@@ -423,8 +419,30 @@ public class DespesaService : IDespesaService
                 despesasParaAtualizar = loteCompleto.Where(d => d.Ano > despesaAlvo.Ano || (d.Ano == despesaAlvo.Ano && d.Mes >= despesaAlvo.Mes));
         }
 
+        despesasParaAtualizar = despesasParaAtualizar.ToList();
+
+        var idsAgrupadorasAfetadas = new HashSet<string>();
+        Despesa agrupadoraReferencia = null;
+
+        if (dto.IdDespesaAgrupadora != null && dto.IdDespesaAgrupadora.PossuiValor())
+        {
+            agrupadoraReferencia = await _repository.GetById(dto.IdDespesaAgrupadora);
+
+            if (agrupadoraReferencia == null)
+                return Result.Failure(Error.NotFound("Despesa agrupadora não encontrada."));
+        }
+
         foreach (var despesa in despesasParaAtualizar)
         {
+            var resultAgrupamento = await AtualizarAgrupamentoDespesaEmLote(
+                despesa,
+                dto.IdDespesaAgrupadora,
+                agrupadoraReferencia,
+                idsAgrupadorasAfetadas);
+
+            if (resultAgrupamento.IsFailure)
+                return Result.Failure(resultAgrupamento.Error);
+
             if (despesa.IsParcelado)
             {
                 despesa.Descricao = $"{dto.NovaDescricao} ({despesa.ParcelaAtual}/{despesa.TotalParcelas})";
@@ -441,29 +459,89 @@ public class DespesaService : IDespesaService
 
         await _repository.UpdateManyAsync(despesasParaAtualizar);
 
-        // Recalcular o valor de cada agrupadora afetada
-        var agrupadorasAfetadas = new HashSet<string>();
         foreach (var despesa in despesasParaAtualizar)
         {
             if (despesa.EstaAgrupada())
-                agrupadorasAfetadas.Add(despesa.IdDespesaAgrupadora);
+                idsAgrupadorasAfetadas.Add(despesa.IdDespesaAgrupadora);
         }
 
-        foreach (var idAgrupadora in agrupadorasAfetadas)
+        await RecalcularAgrupadoras(idsAgrupadorasAfetadas);
+
+        return Result.Success();
+    }
+
+    private async Task<Result> AtualizarAgrupamentoDespesaEmLote(
+        Despesa despesa,
+        string idDespesaAgrupadora,
+        Despesa agrupadoraReferencia,
+        HashSet<string> idsAgrupadorasAfetadas)
+    {
+        if (idDespesaAgrupadora == null)
+            return Result.Success();
+
+        if (despesa.EstaAgrupada())
+            idsAgrupadorasAfetadas.Add(despesa.IdDespesaAgrupadora);
+
+        if (idDespesaAgrupadora.PossuiValor() == false)
+        {
+            await RemoverAgrupamentoDespesaEmLote(despesa, idsAgrupadorasAfetadas);
+            return Result.Success();
+        }
+
+        if (agrupadoraReferencia == null)
+            return Result.Failure(Error.NotFound("Despesa agrupadora não encontrada."));
+
+        var agrupadoraDoMes = await ObterOuClonarAgrupadora(agrupadoraReferencia, despesa.Ano, despesa.Mes);
+
+        if (despesa.IdDespesaAgrupadora == agrupadoraDoMes.Id)
+        {
+            despesa.Agrupadora = agrupadoraDoMes;
+            idsAgrupadorasAfetadas.Add(agrupadoraDoMes.Id);
+            return Result.Success();
+        }
+
+        await RemoverAgrupamentoDespesaEmLote(despesa, idsAgrupadorasAfetadas);
+
+        despesa.AdicionarDespesaAgrupadora(agrupadoraDoMes);
+        despesa.Agrupadora = agrupadoraDoMes;
+        agrupadoraDoMes.MarcarDespesaComoAgrupadora();
+        idsAgrupadorasAfetadas.Add(agrupadoraDoMes.Id);
+        await _repository.Update(agrupadoraDoMes);
+
+        return Result.Success();
+    }
+
+    private async Task RemoverAgrupamentoDespesaEmLote(Despesa despesa, HashSet<string> idsAgrupadorasAfetadas)
+    {
+        if (despesa.EstaAgrupada() == false)
+            return;
+
+        var idAgrupadoraAtual = despesa.IdDespesaAgrupadora;
+        var agrupadoraAtual = await _repository.GetById(idAgrupadoraAtual);
+
+        if (agrupadoraAtual != null)
+        {
+            agrupadoraAtual.DiminuirAgrupamento(despesa);
+            idsAgrupadorasAfetadas.Add(idAgrupadoraAtual);
+            await _repository.Update(agrupadoraAtual);
+        }
+
+        despesa.RemoverDespesaAgrupadora();
+        despesa.Agrupadora = null;
+    }
+
+    private async Task RecalcularAgrupadoras(IEnumerable<string> idsAgrupadoras)
+    {
+        foreach (var idAgrupadora in idsAgrupadoras.Where(x => x.PossuiValor()).Distinct())
         {
             var agrupadora = await _repository.GetById(idAgrupadora);
             if (agrupadora != null)
             {
                 var valorTotal = await _repository.GetValorTotalDespesasDaAgrupadora(idAgrupadora);
-                if (agrupadora.Valor < valorTotal)
-                {
-                    agrupadora.AtualizarValor(valorTotal);
-                    await _repository.Update(agrupadora);
-                }
+                agrupadora.AtualizarValor(valorTotal);
+                await _repository.Update(agrupadora);
             }
         }
-
-        return Result.Success();
     }
 
     public async Task<Result> ExcluirDespesaEmLoteAsync(string id, ModificadorLote modificador)

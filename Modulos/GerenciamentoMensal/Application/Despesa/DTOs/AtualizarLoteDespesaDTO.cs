@@ -7,6 +7,7 @@ namespace Application.DTOs
         public decimal NovoValor { get; set; }
         public string NovaDescricao { get; set; }
         public string NovaCategoriaId { get; set; }
+        public string IdDespesaAgrupadora { get; set; }
         public ModificadorLote Modificador { get; set; }
     }
 }

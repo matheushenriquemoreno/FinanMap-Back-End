@@ -17,10 +17,30 @@ namespace Tests;
 public class DespesaLoteAgrupamentoTests
 {
     [Fact]
+    public async Task AtualizarDespesaEmLote_AgrupadoraComValorBase_SomaFilhaSemSobrescreverBase()
+    {
+        var contexto = CriarContextoParcelado();
+        var agrupadora = contexto.CriarAgrupadora("cartao-1", 2026, 1, 3000);
+        var service = contexto.CriarService();
+
+        var resultado = await service.AtualizarDespesaEmLoteAsync("parcela-1", new AtualizarLoteDespesaDTO
+        {
+            NovoValor = 1000,
+            NovaDescricao = "Compra",
+            NovaCategoriaId = contexto.CategoriaDespesa.Id,
+            IdDespesaAgrupadora = agrupadora.Id,
+            Modificador = ModificadorLote.ApenasEsta
+        });
+
+        Assert.True(resultado.IsSucess);
+        Assert.Equal(4000, contexto.Repository.Get(agrupadora.Id).Valor);
+    }
+
+    [Fact]
     public async Task AtualizarDespesaEmLote_ApenasEsta_AgrupaSomenteDespesaAlvo()
     {
         var contexto = CriarContextoParcelado();
-        var agrupadora = contexto.CriarAgrupadora("cartao-1", 2026, 1);
+        var agrupadora = contexto.CriarAgrupadora("cartao-1", 2026, 1, 3000);
         var service = contexto.CriarService();
 
         var resultado = await service.AtualizarDespesaEmLoteAsync("parcela-1", new AtualizarLoteDespesaDTO
@@ -36,7 +56,7 @@ public class DespesaLoteAgrupamentoTests
         Assert.Equal(agrupadora.Id, contexto.Repository.Get("parcela-1").IdDespesaAgrupadora);
         Assert.Null(contexto.Repository.Get("parcela-2").IdDespesaAgrupadora);
         Assert.Null(contexto.Repository.Get("parcela-3").IdDespesaAgrupadora);
-        Assert.Equal(90, contexto.Repository.Get(agrupadora.Id).Valor);
+        Assert.Equal(3090, contexto.Repository.Get(agrupadora.Id).Valor);
     }
 
     [Fact]
@@ -88,8 +108,8 @@ public class DespesaLoteAgrupamentoTests
     public async Task AtualizarDespesaEmLote_TrocaAgrupadora_RecalculaAgrupadorasAntigaENova()
     {
         var contexto = CriarContextoParcelado();
-        var agrupadoraAntiga = contexto.CriarAgrupadora("cartao-antigo", 2026, 1);
-        var agrupadoraNova = contexto.CriarAgrupadora("cartao-novo", 2026, 1);
+        var agrupadoraAntiga = contexto.CriarAgrupadora("cartao-antigo", 2026, 1, 3000);
+        var agrupadoraNova = contexto.CriarAgrupadora("cartao-novo", 2026, 1, 2000);
         contexto.Vincular(contexto.Repository.Get("parcela-1"), agrupadoraAntiga);
         contexto.Vincular(contexto.Repository.Get("parcela-2"), agrupadoraAntiga);
         contexto.Vincular(contexto.Repository.Get("parcela-3"), agrupadoraAntiga);
@@ -107,15 +127,15 @@ public class DespesaLoteAgrupamentoTests
         Assert.True(resultado.IsSucess);
         Assert.All(contexto.Parcelas, despesa => Assert.NotEqual(agrupadoraAntiga.Id, despesa.IdDespesaAgrupadora));
         Assert.Equal(agrupadoraNova.Id, contexto.Repository.Get("parcela-1").IdDespesaAgrupadora);
-        Assert.Equal(0, contexto.Repository.Get(agrupadoraAntiga.Id).Valor);
-        Assert.All(contexto.Parcelas, despesa => Assert.Equal(40, despesa.Agrupadora.Valor));
+        Assert.Equal(3000, contexto.Repository.Get(agrupadoraAntiga.Id).Valor);
+        Assert.Equal(2040, contexto.Repository.Get("parcela-1").Agrupadora.Valor);
     }
 
     [Fact]
     public async Task AtualizarDespesaEmLote_RemoveAgrupamento_RecalculaAgrupadora()
     {
         var contexto = CriarContextoParcelado();
-        var agrupadora = contexto.CriarAgrupadora("cartao-1", 2026, 1);
+        var agrupadora = contexto.CriarAgrupadora("cartao-1", 2026, 1, 3000);
         contexto.Vincular(contexto.Repository.Get("parcela-1"), agrupadora);
         contexto.Vincular(contexto.Repository.Get("parcela-2"), agrupadora);
         contexto.Vincular(contexto.Repository.Get("parcela-3"), agrupadora);
@@ -132,14 +152,15 @@ public class DespesaLoteAgrupamentoTests
 
         Assert.True(resultado.IsSucess);
         Assert.All(contexto.Parcelas, despesa => Assert.Null(despesa.IdDespesaAgrupadora));
-        Assert.Equal(0, contexto.Repository.Get(agrupadora.Id).Valor);
+        Assert.Equal(3000, contexto.Repository.Get(agrupadora.Id).Valor);
+        Assert.False(contexto.Repository.Get(agrupadora.Id).EhAgrupadora());
     }
 
     [Fact]
     public async Task AtualizarDespesaEmLote_ValorAumentaOuDiminui_RecalculaAgrupadora()
     {
         var contexto = CriarContextoParcelado();
-        var agrupadora = contexto.CriarAgrupadora("cartao-1", 2026, 1);
+        var agrupadora = contexto.CriarAgrupadora("cartao-1", 2026, 1, 3000);
         contexto.Vincular(contexto.Repository.Get("parcela-1"), agrupadora);
         var service = contexto.CriarService();
 
@@ -163,7 +184,22 @@ public class DespesaLoteAgrupamentoTests
 
         Assert.True(resultadoAumentar.IsSucess);
         Assert.True(resultadoDiminuir.IsSucess);
-        Assert.Equal(25, contexto.Repository.Get(agrupadora.Id).Valor);
+        Assert.Equal(3025, contexto.Repository.Get(agrupadora.Id).Valor);
+    }
+
+    [Fact]
+    public async Task ExcluirDespesaEmLote_ApenasEsta_RemoveFilhaEMantemValorBaseDaAgrupadora()
+    {
+        var contexto = CriarContextoParcelado();
+        var agrupadora = contexto.CriarAgrupadora("cartao-1", 2026, 1, 3000);
+        contexto.Vincular(contexto.Repository.Get("parcela-1"), agrupadora);
+        var service = contexto.CriarService();
+
+        var resultado = await service.ExcluirDespesaEmLoteAsync("parcela-1", ModificadorLote.ApenasEsta);
+
+        Assert.True(resultado.IsSucess);
+        Assert.Equal(3000, contexto.Repository.Get(agrupadora.Id).Valor);
+        Assert.False(contexto.Repository.Get(agrupadora.Id).EhAgrupadora());
     }
 
     private static TestContext CriarContextoParcelado()
@@ -206,9 +242,9 @@ public class DespesaLoteAgrupamentoTests
         public DespesaService CriarService() =>
             new(repository, categoriaRepository, reportRepository, new UsuarioLogadoFake(usuario));
 
-        public Despesa CriarAgrupadora(string id, int ano, int mes)
+        public Despesa CriarAgrupadora(string id, int ano, int mes, decimal valor = 0)
         {
-            var agrupadora = new Despesa(ano, mes, "Cartao", 0, categoriaDespesa, usuario)
+            var agrupadora = new Despesa(ano, mes, "Cartao", valor, categoriaDespesa, usuario)
             {
                 Id = id
             };

@@ -8,6 +8,7 @@ using Domain.Login.Interfaces;
 using Domain.Relatorios.AcumuladoMensal;
 using Domain.Relatorios.Entity;
 using Domain.Repository;
+using System.Text.RegularExpressions;
 
 namespace Application.Services;
 
@@ -423,6 +424,7 @@ public class DespesaService : IDespesaService
 
         var idsAgrupadorasAfetadas = new HashSet<string>();
         Despesa agrupadoraReferencia = null;
+        var descricaoNormalizada = NormalizarDescricaoParcela(dto.NovaDescricao);
 
         if (dto.IdDespesaAgrupadora != null && dto.IdDespesaAgrupadora.PossuiValor())
         {
@@ -443,16 +445,8 @@ public class DespesaService : IDespesaService
             if (resultAgrupamento.IsFailure)
                 return Result.Failure(resultAgrupamento.Error);
 
-            if (despesa.IsParcelado)
-            {
-                despesa.Descricao = $"{dto.NovaDescricao} ({despesa.ParcelaAtual}/{despesa.TotalParcelas})";
-                despesa.AtualizarValor(dto.NovoValor);
-            }
-            else
-            {
-                despesa.Descricao = dto.NovaDescricao;
-                despesa.AtualizarValor(dto.NovoValor);
-            }
+            despesa.Descricao = descricaoNormalizada;
+            despesa.AtualizarValor(dto.NovoValor);
 
             despesa.PreencherCategoria(categoria);
         }
@@ -542,6 +536,14 @@ public class DespesaService : IDespesaService
                 await _repository.Update(agrupadora);
             }
         }
+    }
+
+    private static string NormalizarDescricaoParcela(string descricao)
+    {
+        if (string.IsNullOrWhiteSpace(descricao))
+            return descricao;
+
+        return Regex.Replace(descricao, @"(?:\s+\(\d+/\d+\))+$", string.Empty).Trim();
     }
 
     public async Task<Result> ExcluirDespesaEmLoteAsync(string id, ModificadorLote modificador)

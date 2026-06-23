@@ -8,6 +8,7 @@ using Domain.Login.Interfaces;
 using Domain.Relatorios.AcumuladoMensal;
 using Domain.Relatorios.Entity;
 using Domain.Repository;
+using System.Text.RegularExpressions;
 
 namespace Application.Services;
 
@@ -423,18 +424,12 @@ public class DespesaService : IDespesaService
                 despesasParaAtualizar = loteCompleto.Where(d => d.Ano > despesaAlvo.Ano || (d.Ano == despesaAlvo.Ano && d.Mes >= despesaAlvo.Mes));
         }
 
+        var descricaoNormalizada = NormalizarDescricaoParcela(dto.NovaDescricao);
+
         foreach (var despesa in despesasParaAtualizar)
         {
-            if (despesa.IsParcelado)
-            {
-                despesa.Descricao = $"{dto.NovaDescricao} ({despesa.ParcelaAtual}/{despesa.TotalParcelas})";
-                despesa.AtualizarValor(dto.NovoValor);
-            }
-            else
-            {
-                despesa.Descricao = dto.NovaDescricao;
-                despesa.AtualizarValor(dto.NovoValor);
-            }
+            despesa.Descricao = descricaoNormalizada;
+            despesa.AtualizarValor(dto.NovoValor);
 
             despesa.PreencherCategoria(categoria);
         }
@@ -464,6 +459,14 @@ public class DespesaService : IDespesaService
         }
 
         return Result.Success();
+    }
+
+    private static string NormalizarDescricaoParcela(string descricao)
+    {
+        if (string.IsNullOrWhiteSpace(descricao))
+            return descricao;
+
+        return Regex.Replace(descricao, @"(?:\s+\(\d+/\d+\))+$", string.Empty).Trim();
     }
 
     public async Task<Result> ExcluirDespesaEmLoteAsync(string id, ModificadorLote modificador)

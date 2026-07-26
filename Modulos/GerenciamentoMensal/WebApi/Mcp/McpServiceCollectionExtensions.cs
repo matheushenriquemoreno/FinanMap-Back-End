@@ -1,10 +1,17 @@
 using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Application.Mcp.Configuration;
 using Application.Mcp.Interfaces;
 using Application.Mcp.Services;
+using Domain.Mcp.Repositories;
+using Infra.Data.Mongo.Mcp;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol;
+using ModelContextProtocol.Server;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.RateLimiting;
 using OpenIddict.Validation.AspNetCore;
@@ -21,6 +28,7 @@ public static class McpServiceCollectionExtensions
         IHostEnvironment environment)
     {
         var endpointEnabled = IsEndpointEnabled(configuration);
+        var writeToolsEnabled = IsWriteToolsEnabled(configuration);
         var publicBaseUrl =
             configuration["MCP_PUBLIC_BASE_URL"] ??
             configuration[$"{McpFeatureOptions.SectionName}:PublicBaseUrl"];
@@ -54,10 +62,28 @@ public static class McpServiceCollectionExtensions
             : SHA256.HashData(Encoding.UTF8.GetBytes(cursorKeySetting));
         services.AddSingleton(new McpCursorCodec(cursorKey));
         services.AddSingleton<McpAuditSanitizer>();
+        if (writeToolsEnabled)
+        {
+            var previewEncryptionKey = ResolvePreviewEncryptionKey(
+                configuration,
+                environment);
+            services.AddSingleton<IMcpPreviewPayloadProtector>(
+                new McpPreviewPayloadProtector(previewEncryptionKey));
+            services.AddSingleton(TimeProvider.System);
+            services.AddScoped<IMcpWriteEffectStore, McpWriteEffectStore>();
+            services.AddScoped<IMcpPreviewRepository, McpPreviewRepository>();
+            services.AddScoped<
+                IMcpConfirmationJournalRepository,
+                McpOperationJournalRepository>();
+            services.AddScoped<IMcpWriteDomainGateway, McpWriteDomainGateway>();
+            services.AddScoped<McpWriteService>();
+            services.AddScoped<McpOperationReconciler>();
+            services.AddHostedService<McpOperationReconciliationWorker>();
+        }
         services.AddLogging(logging =>
             logging.AddFilter("OpenIddict", LogLevel.Warning));
 
-        services.AddMcpServer()
+        var mcpServer = services.AddMcpServer()
             .WithHttpTransport(options =>
             {
                 options.Stateless = true;
@@ -65,6 +91,60 @@ public static class McpServiceCollectionExtensions
             .AddAuthorizationFilters()
             .WithTools<McpCategoriesTool>()
             .WithTools<McpFinancialTools>();
+        if (writeToolsEnabled)
+        {
+            var writeSerializerOptions =
+                new JsonSerializerOptions(McpJsonUtilities.DefaultOptions)
+                {
+                    UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+                };
+            var schemaOptions = new AIJsonSchemaCreateOptions
+            {
+                TransformSchemaNode = static (_, schema) =>
+                {
+                    if (schema is JsonObject objectSchema &&
+                        objectSchema["type"] is JsonValue typeNode &&
+                        typeNode.TryGetValue<string>(out var type) &&
+                        type == "object")
+                    {
+                        objectSchema["additionalProperties"] = false;
+                    }
+
+                    return schema;
+                }
+            };
+            var writeTools = typeof(McpWriteTools)
+                .GetMethods()
+                .Where(method =>
+                    method.GetCustomAttributes(
+                            typeof(McpServerToolAttribute),
+                            inherit: false)
+                        .Length > 0)
+                .Select(method =>
+                {
+                    var tool = McpServerTool.Create(
+                        method,
+                        request => ActivatorUtilities.CreateInstance<McpWriteTools>(
+                            request.Services ??
+                            throw new InvalidOperationException(
+                                "Escopo de serviços MCP indisponível.")),
+                        new McpServerToolCreateOptions
+                        {
+                            SerializerOptions = writeSerializerOptions,
+                            SchemaCreateOptions = schemaOptions
+                        });
+                    var inputSchema = JsonNode.Parse(
+                            tool.ProtocolTool.InputSchema.GetRawText())
+                        ?.AsObject() ??
+                        throw new InvalidOperationException(
+                            $"Schema MCP inválido para {tool.ProtocolTool.Name}.");
+                    inputSchema["additionalProperties"] = false;
+                    tool.ProtocolTool.InputSchema =
+                        JsonSerializer.SerializeToElement(inputSchema);
+                    return tool;
+                });
+            mcpServer.WithTools(writeTools);
+        }
 
         var openIddict = services.AddOpenIddict();
         openIddict.AddCore(options => options.UseMongoDb());
@@ -192,5 +272,54 @@ public static class McpServiceCollectionExtensions
             configuration["MCP_FEATURE_ENABLED"] ??
             configuration[$"{McpFeatureOptions.SectionName}:EndpointEnabled"];
         return bool.TryParse(rawValue, out var enabled) && enabled;
+    }
+
+    private static bool IsWriteToolsEnabled(IConfiguration configuration)
+    {
+        var rawValue =
+            Environment.GetEnvironmentVariable("MCP_WRITE_TOOLS_ENABLED") ??
+            configuration["MCP_WRITE_TOOLS_ENABLED"] ??
+            configuration[$"{McpFeatureOptions.SectionName}:WriteToolsEnabled"];
+        return bool.TryParse(rawValue, out var enabled) && enabled;
+    }
+
+    private static byte[] ResolvePreviewEncryptionKey(
+        IConfiguration configuration,
+        IHostEnvironment environment)
+    {
+        const string settingName = "MCP_PREVIEW_ENCRYPTION_KEY";
+        var configured =
+            Environment.GetEnvironmentVariable(settingName) ??
+            configuration[settingName];
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            if (!environment.IsDevelopment())
+            {
+                throw new InvalidOperationException(
+                    $"{settingName} é obrigatória fora do ambiente Development e deve conter exatamente 32 bytes em base64.");
+            }
+
+            return RandomNumberGenerator.GetBytes(32);
+        }
+
+        byte[] decoded;
+        try
+        {
+            decoded = Convert.FromBase64String(configured.Trim());
+        }
+        catch (FormatException exception)
+        {
+            throw new InvalidOperationException(
+                $"{settingName} deve conter exatamente 32 bytes em base64.",
+                exception);
+        }
+
+        if (decoded.Length != 32)
+        {
+            throw new InvalidOperationException(
+                $"{settingName} deve conter exatamente 32 bytes em base64.");
+        }
+
+        return decoded;
     }
 }

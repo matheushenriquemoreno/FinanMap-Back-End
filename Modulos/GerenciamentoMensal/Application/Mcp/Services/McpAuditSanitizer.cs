@@ -28,7 +28,14 @@ public sealed partial class McpAuditSanitizer
         "cursorPresent",
         "active",
         "quantity",
-        "metrics"
+        "metrics",
+        "entityType",
+        "action",
+        "requestIdPresent",
+        "targetPresent",
+        "irreversible",
+        "previewIdPresent",
+        "decision"
     };
 
     public IReadOnlyDictionary<string, object?> Sanitize(IReadOnlyDictionary<string, object?> parameters)

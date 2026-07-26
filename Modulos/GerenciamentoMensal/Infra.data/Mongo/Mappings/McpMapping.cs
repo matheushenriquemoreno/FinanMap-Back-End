@@ -1,5 +1,6 @@
 using Domain.Mcp.Entities;
 using Infra.Data.Mongo.Config.Interface;
+using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Driver;
 
@@ -9,14 +10,24 @@ public sealed class McpMapping : IMongoMapping
 {
     public void RegisterMap(IMongoClient mongoClient)
     {
+        new EntityBaseMapping().RegisterMap(mongoClient);
         BsonClassMap.TryRegisterClassMap<McpConnection>(map => map.AutoMap());
         BsonClassMap.TryRegisterClassMap<McpAuthorizationInteraction>(map => map.AutoMap());
-        BsonClassMap.TryRegisterClassMap<McpOperationJournal>(map => map.AutoMap());
+        BsonClassMap.TryRegisterClassMap<McpOperationJournal>(map =>
+        {
+            map.AutoMap();
+            map.GetMemberMap(item => item.PreviewId).SetIgnoreIfNull(true);
+        });
+        BsonClassMap.TryRegisterClassMap<McpOperationStep>(map => map.AutoMap());
+        BsonClassMap.TryRegisterClassMap<McpPreview>(map => map.AutoMap());
 
         var database = mongoClient.GetDatabase();
         CreateConnectionIndexes(database.GetCollection<McpConnection>("McpConnections"));
         CreateInteractionIndexes(database.GetCollection<McpAuthorizationInteraction>("McpAuthorizationInteractions"));
         CreateJournalIndexes(database.GetCollection<McpOperationJournal>("McpOperationJournal"));
+        CreatePreviewIndexes(database.GetCollection<McpPreview>("McpPreviews"));
+        CreateFinancialEffectIndexes(database.GetCollection<BsonDocument>("Categoria"));
+        CreateFinancialEffectIndexes(database.GetCollection<BsonDocument>("Rendimento"));
     }
 
     private static void CreateConnectionIndexes(IMongoCollection<McpConnection> collection)
@@ -57,7 +68,81 @@ public sealed class McpMapping : IMongoMapping
             new CreateIndexModel<McpOperationJournal>(
                 Builders<McpOperationJournal>.IndexKeys
                     .Ascending(item => item.State)
-                    .Ascending(item => item.StartedAtUtc))
+                    .Ascending(item => item.NextAttemptAtUtc)),
+            new CreateIndexModel<McpOperationJournal>(
+                Builders<McpOperationJournal>.IndexKeys.Ascending(item => item.PreviewId),
+                new CreateIndexOptions<McpOperationJournal>
+                {
+                    Unique = true,
+                    PartialFilterExpression =
+                        Builders<McpOperationJournal>.Filter.Type(
+                            item => item.PreviewId,
+                            BsonType.String)
+                }),
+            new CreateIndexModel<McpOperationJournal>(
+                Builders<McpOperationJournal>.IndexKeys
+                    .Ascending(item => item.UserId)
+                    .Ascending(item => item.ConnectionId)
+                    .Ascending(item => item.ToolName)
+                    .Ascending(item => item.IdempotencyKey),
+                new CreateIndexOptions<McpOperationJournal>
+                {
+                    Unique = true,
+                    PartialFilterExpression =
+                        Builders<McpOperationJournal>.Filter.Type(
+                            item => item.IdempotencyKey,
+                            MongoDB.Bson.BsonType.String)
+                })
+        ]);
+    }
+
+    private static void CreatePreviewIndexes(IMongoCollection<McpPreview> collection)
+    {
+        collection.Indexes.CreateMany(
+        [
+            new CreateIndexModel<McpPreview>(
+                Builders<McpPreview>.IndexKeys
+                    .Ascending(item => item.UserId)
+                    .Ascending(item => item.ConnectionId)
+                    .Ascending(item => item.ToolName)
+                    .Ascending(item => item.RequestId),
+                new CreateIndexOptions { Unique = true }),
+            new CreateIndexModel<McpPreview>(
+                Builders<McpPreview>.IndexKeys
+                    .Ascending(item => item.UserId)
+                    .Ascending(item => item.State)
+                    .Ascending(item => item.ExpiresAtUtc)),
+            new CreateIndexModel<McpPreview>(
+                Builders<McpPreview>.IndexKeys.Ascending(item => item.PurgeAtUtc),
+                new CreateIndexOptions
+                {
+                    ExpireAfter = TimeSpan.Zero
+                })
+        ]);
+    }
+
+    private static void CreateFinancialEffectIndexes(
+        IMongoCollection<BsonDocument> collection)
+    {
+        var keys = Builders<BsonDocument>.IndexKeys;
+        var filter = Builders<BsonDocument>.Filter;
+        collection.Indexes.CreateMany(
+        [
+            new CreateIndexModel<BsonDocument>(
+                keys.Ascending("UsuarioId").Ascending("McpOperationId"),
+                new CreateIndexOptions<BsonDocument>
+                {
+                    Unique = true,
+                    PartialFilterExpression =
+                        filter.Type("McpOperationId", BsonType.String)
+                }),
+            new CreateIndexModel<BsonDocument>(
+                keys.Ascending("UsuarioId").Ascending("LastMcpOperationId"),
+                new CreateIndexOptions<BsonDocument>
+                {
+                    PartialFilterExpression =
+                        filter.Type("LastMcpOperationId", BsonType.String)
+                })
         ]);
     }
 }

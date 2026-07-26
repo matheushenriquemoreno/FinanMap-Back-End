@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Client;
 using WebApi.Mcp;
@@ -11,34 +12,9 @@ namespace Tests;
 public class McpSdkTransportContractTests
 {
     [Fact]
-    public async Task Official_sdk_discovers_all_read_tools_over_streamable_http_2025_11_25()
+    public async Task Official_sdk_discovers_only_read_tools_when_writes_are_disabled()
     {
-        var builder = WebApplication.CreateBuilder();
-        builder.WebHost.UseTestServer();
-        builder.Services.AddHttpContextAccessor();
-        builder.Services.AddMcpServer()
-            .WithHttpTransport(options => options.Stateless = true)
-            .WithTools<McpCategoriesTool>()
-            .WithTools<McpFinancialTools>();
-        await using var app = builder.Build();
-        app.MapMcp("/mcp");
-        await app.StartAsync();
-
-        var httpClient = app.GetTestClient();
-        var transport = new HttpClientTransport(
-            new HttpClientTransportOptions
-            {
-                Endpoint = new Uri(httpClient.BaseAddress!, "/mcp"),
-                TransportMode = HttpTransportMode.StreamableHttp
-            },
-            httpClient,
-            loggerFactory: null,
-            ownsHttpClient: false);
-        await using var client = await McpClient.CreateAsync(
-            transport,
-            new McpClientOptions { ProtocolVersion = "2025-11-25" });
-
-        var tools = await client.ListToolsAsync();
+        var tools = await DiscoverToolsAsync(writeToolsEnabled: false);
 
         var names = tools.Select(tool => tool.Name).Order().ToArray();
         Assert.Equal(
@@ -77,5 +53,114 @@ public class McpSdkTransportContractTests
         Assert.Contains("\"Totals\"", compareSchema);
         Assert.Contains("\"Difference\"", compareSchema);
         Assert.Contains("\"Percentage\"", compareSchema);
+    }
+
+    [Fact]
+    public async Task Official_sdk_discovers_closed_write_tools_only_when_flag_is_enabled()
+    {
+        var tools = await DiscoverToolsAsync(writeToolsEnabled: true);
+        var names = tools.Select(tool => tool.Name).Order().ToArray();
+
+        Assert.Equal(
+            new[]
+            {
+                "finanmap_categories_list",
+                "finanmap_category_create_preview",
+                "finanmap_category_delete_preview",
+                "finanmap_category_impact_get",
+                "finanmap_category_update_preview",
+                "finanmap_expenses_list",
+                "finanmap_financial_summary_get",
+                "finanmap_fixed_costs_list",
+                "finanmap_income_create_preview",
+                "finanmap_income_delete_preview",
+                "finanmap_income_update_preview",
+                "finanmap_incomes_list",
+                "finanmap_investments_list",
+                "finanmap_largest_movements_get",
+                "finanmap_operation_cancel",
+                "finanmap_operation_confirm",
+                "finanmap_operation_status_get",
+                "finanmap_periods_compare"
+            },
+            names);
+
+        var writeTools = tools
+            .Where(tool =>
+                tool.Name.Contains("_preview", StringComparison.Ordinal) ||
+                tool.Name.StartsWith("finanmap_operation_", StringComparison.Ordinal))
+            .ToDictionary(tool => tool.Name, StringComparer.Ordinal);
+        Assert.Equal(9, writeTools.Count);
+        Assert.All(writeTools.Values, tool =>
+        {
+            Assert.False(tool.ProtocolTool.Annotations?.OpenWorldHint);
+            Assert.True(tool.ProtocolTool.Annotations?.IdempotentHint);
+            Assert.NotNull(tool.ProtocolTool.OutputSchema);
+            var schema = tool.ProtocolTool.InputSchema.ToString();
+            Assert.Contains("\"additionalProperties\":false", schema);
+            Assert.DoesNotContain("userId", schema, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("usuarioId", schema, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("proprietarioId", schema, StringComparison.OrdinalIgnoreCase);
+        });
+
+        foreach (var preview in writeTools
+                     .Where(item => item.Key.EndsWith("_preview", StringComparison.Ordinal))
+                     .Select(item => item.Value))
+        {
+            Assert.False(preview.ProtocolTool.Annotations?.ReadOnlyHint);
+            Assert.False(preview.ProtocolTool.Annotations?.DestructiveHint);
+        }
+
+        var confirm = writeTools["finanmap_operation_confirm"];
+        Assert.False(confirm.ProtocolTool.Annotations?.ReadOnlyHint);
+        Assert.True(confirm.ProtocolTool.Annotations?.DestructiveHint);
+        var confirmSchema = confirm.ProtocolTool.InputSchema.ToString();
+        Assert.Contains("\"APPLY_CHANGES\"", confirmSchema);
+        Assert.Contains("\"DELETE_PERMANENTLY\"", confirmSchema);
+        Assert.DoesNotContain("\"IMPORT_VALID_ITEMS\"", confirmSchema);
+
+        var cancel = writeTools["finanmap_operation_cancel"];
+        Assert.False(cancel.ProtocolTool.Annotations?.ReadOnlyHint);
+        Assert.False(cancel.ProtocolTool.Annotations?.DestructiveHint);
+
+        var status = writeTools["finanmap_operation_status_get"];
+        Assert.True(status.ProtocolTool.Annotations?.ReadOnlyHint);
+        Assert.False(status.ProtocolTool.Annotations?.DestructiveHint);
+    }
+
+    private static async Task<IList<McpClientTool>> DiscoverToolsAsync(
+        bool writeToolsEnabled)
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Environment.EnvironmentName = "Development";
+        builder.WebHost.UseTestServer();
+        builder.Configuration.AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                ["Mcp:WriteToolsEnabled"] = writeToolsEnabled.ToString()
+            });
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddMcpFinanceiro(
+            builder.Configuration,
+            builder.Environment);
+        await using var app = builder.Build();
+        app.MapMcp("/mcp");
+        await app.StartAsync();
+
+        var httpClient = app.GetTestClient();
+        var transport = new HttpClientTransport(
+            new HttpClientTransportOptions
+            {
+                Endpoint = new Uri(httpClient.BaseAddress!, "/mcp"),
+                TransportMode = HttpTransportMode.StreamableHttp
+            },
+            httpClient,
+            loggerFactory: null,
+            ownsHttpClient: false);
+        await using var client = await McpClient.CreateAsync(
+            transport,
+            new McpClientOptions { ProtocolVersion = "2025-11-25" });
+
+        return await client.ListToolsAsync();
     }
 }

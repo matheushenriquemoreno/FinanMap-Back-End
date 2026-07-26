@@ -9,5 +9,8 @@ public class CreateCategoriaDTO
 
     [Required(ErrorMessage = "Campo Tipo e obrigatorio!")]
     public TipoCategoria? Tipo { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string McpOperationId { get; set; }
 }
 

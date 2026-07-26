@@ -1,5 +1,7 @@
 ﻿using Application.DTOs;
+using System.Globalization;
 using Application.Interface;
+using Application.Mcp.Models;
 using Application.Shared.Transacao.DTOs;
 using Domain.Compartilhamento.Entity;
 using Domain.Entity;
@@ -36,10 +38,14 @@ public class RendimentoService : IRendimentoService
 
         Categoria? categoria = await _categoriaRepository.GetById(createDTO.CategoriaId);
 
-        if (categoria == null)
+        if (categoria == null ||
+            categoria.UsuarioId != _usuarioLogado.IdContextoDados ||
+            categoria.Tipo != TipoCategoria.Rendimento)
             return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Categoria informada não existe!"));
 
         Rendimento rendimento = new Rendimento(createDTO.Ano, createDTO.Mes, createDTO.Descricao, createDTO.Valor, categoria, _usuarioLogado.UsuarioContextoDados);
+        if (!string.IsNullOrWhiteSpace(createDTO.McpOperationId))
+            rendimento.MarcarCriacaoMcp(createDTO.McpOperationId);
 
         await _rendimentoRepository.Add(rendimento);
 
@@ -59,7 +65,7 @@ public class RendimentoService : IRendimentoService
 
         Rendimento rendimento = await _rendimentoRepository.GetById(updateDTO.Id);
 
-        if (rendimento == null)
+        if (rendimento == null || !PertenceAoContexto(rendimento))
             return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Rendimento informado não existe!"));
 
         if (!PertenceAoContexto(rendimento))
@@ -90,7 +96,7 @@ public class RendimentoService : IRendimentoService
 
         var rendimento = await _rendimentoRepository.GetById(id);
 
-        if (rendimento == null)
+        if (rendimento == null || !PertenceAoContexto(rendimento))
             return Result.Failure(Error.NotFound("Rendimento informado não existe!"));
 
         await _rendimentoRepository.Delete(rendimento);
@@ -102,7 +108,7 @@ public class RendimentoService : IRendimentoService
     {
         var rendimento = await _rendimentoRepository.GetById(id);
 
-        if (rendimento == null)
+        if (rendimento == null || !PertenceAoContexto(rendimento))
             return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Rendimento informado não existe!"));
 
         return Result.Success(rendimento.Adapt<ResultRendimentoDTO>());
@@ -124,7 +130,7 @@ public class RendimentoService : IRendimentoService
 
         Rendimento rendimento = await _rendimentoRepository.GetById(updateValorTransacaoDTO.Id);
 
-        if (rendimento == null)
+        if (rendimento == null || !PertenceAoContexto(rendimento))
             return Result.Failure<ResultRendimentoDTO>(Error.NotFound("Rendimento informado não existe!"));
 
         if (!PertenceAoContexto(rendimento))
@@ -139,6 +145,179 @@ public class RendimentoService : IRendimentoService
         return Result.Success(ObterRendimentoDTO(rendimento, reportAcumulado));
     }
 
+
+    public async Task<McpApplicationMutationResult> AplicarMutacaoMcpAsync(
+        McpWriteCommand command,
+        string operationId,
+        string resultHash,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.Entity != McpWriteEntity.Income ||
+            command.TargetId is null ||
+            command.ExpectedValues is null ||
+            !TryIncome(
+                command.ExpectedValues,
+                out var expectedYear,
+                out var expectedMonth,
+                out var expectedDescription,
+                out var expectedAmount,
+                out var expectedCategoryId))
+        {
+            return MutationRejected(
+                "PREVIEW_PAYLOAD_INVALID",
+                "A prévia de receita não contém o snapshot obrigatório.");
+        }
+
+        if (command.Action == Domain.Mcp.Enums.McpPreviewAction.Update)
+        {
+            var proposed = new Dictionary<string, object?>(command.ExpectedValues);
+            foreach (var change in command.Values)
+                proposed[change.Key] = change.Value;
+            if (!TryIncome(
+                    proposed,
+                    out _,
+                    out _,
+                    out var proposedDescription,
+                    out var proposedAmount,
+                    out var proposedCategoryId))
+            {
+                return MutationRejected(
+                    "PREVIEW_PAYLOAD_INVALID",
+                    "Os valores propostos para a receita são inválidos.");
+            }
+
+            var category = await _categoriaRepository.GetById(proposedCategoryId);
+            if (category is null ||
+                category.UsuarioId != _usuarioLogado.IdContextoDados ||
+                category.Tipo != TipoCategoria.Rendimento)
+            {
+                return MutationRejected(
+                    "CATEGORY_RELATIONSHIP_INVALID",
+                    "A categoria proposta não existe nesta conta ou não aceita receitas.");
+            }
+
+            var updated = await _rendimentoRepository.TryUpdateMcpAsync(
+                command.TargetId,
+                _usuarioLogado.IdContextoDados,
+                expectedYear,
+                expectedMonth,
+                expectedDescription,
+                expectedAmount,
+                expectedCategoryId,
+                proposedDescription,
+                proposedAmount,
+                proposedCategoryId,
+                operationId,
+                resultHash,
+                cancellationToken);
+            if (updated is not null)
+                return MutationCompleted(updated.Id, operationId, resultHash);
+
+            var current = await _rendimentoRepository.GetById(command.TargetId);
+            return current is null || !PertenceAoContexto(current)
+                ? MutationRejected(
+                    "RECORD_NOT_FOUND",
+                    "A receita não foi encontrada para esta conta.")
+                : MutationConflict();
+        }
+
+        if (command.Action != Domain.Mcp.Enums.McpPreviewAction.Delete)
+        {
+            return MutationRejected(
+                "PREVIEW_PAYLOAD_INVALID",
+                "A ação MCP de receita é inválida.");
+        }
+
+        var deleted = await _rendimentoRepository.TryDeleteMcpAsync(
+            command.TargetId,
+            _usuarioLogado.IdContextoDados,
+            expectedYear,
+            expectedMonth,
+            expectedDescription,
+            expectedAmount,
+            expectedCategoryId,
+            cancellationToken);
+        if (deleted)
+            return MutationCompleted(command.TargetId, operationId, resultHash);
+
+        var observed = await _rendimentoRepository.GetById(command.TargetId);
+        return observed is null
+            ? new McpApplicationMutationResult(
+                McpApplicationMutationState.Unknown,
+                command.TargetId,
+                null,
+                null,
+                "EFFECT_OUTCOME_UNKNOWN",
+                "A receita está ausente, mas a causalidade da exclusão não pôde ser comprovada.")
+            : MutationConflict();
+    }
+
+    private static bool TryIncome(
+        IReadOnlyDictionary<string, object?> values,
+        out int year,
+        out int month,
+        out string description,
+        out decimal amount,
+        out string categoryId)
+    {
+        year = 0;
+        month = 0;
+        amount = 0;
+        description = values.GetValueOrDefault("description")?.ToString() ?? string.Empty;
+        categoryId = values.GetValueOrDefault("categoryId")?.ToString() ?? string.Empty;
+        return int.TryParse(
+                   values.GetValueOrDefault("year")?.ToString(),
+                   NumberStyles.Integer,
+                   CultureInfo.InvariantCulture,
+                   out year) &&
+               int.TryParse(
+                   values.GetValueOrDefault("month")?.ToString(),
+                   NumberStyles.Integer,
+                   CultureInfo.InvariantCulture,
+                   out month) &&
+               decimal.TryParse(
+                   values.GetValueOrDefault("amount")?.ToString(),
+                   NumberStyles.AllowDecimalPoint,
+                   CultureInfo.InvariantCulture,
+                   out amount) &&
+               year >= DateTime.UtcNow.Year - 5 &&
+               month is >= 1 and <= 12 &&
+               amount > 0 &&
+               !string.IsNullOrWhiteSpace(description) &&
+               !string.IsNullOrWhiteSpace(categoryId);
+    }
+
+    private static McpApplicationMutationResult MutationCompleted(
+        string id,
+        string operationId,
+        string resultHash) =>
+        new(
+            McpApplicationMutationState.Completed,
+            id,
+            operationId,
+            resultHash,
+            null,
+            null);
+
+    private static McpApplicationMutationResult MutationConflict() =>
+        new(
+            McpApplicationMutationState.ConflictChanged,
+            null,
+            null,
+            null,
+            "CONFLICT_CHANGED",
+            "A receita mudou desde a prévia; prepare uma nova.");
+
+    private static McpApplicationMutationResult MutationRejected(
+        string code,
+        string message) =>
+        new(
+            McpApplicationMutationState.Rejected,
+            null,
+            null,
+            null,
+            code,
+            message);
 
     #region metodos privado
     private static ResultRendimentoDTO ObterRendimentoDTO(Rendimento rendimento, AcumuladoMensalReport? reportAcumulado = null)

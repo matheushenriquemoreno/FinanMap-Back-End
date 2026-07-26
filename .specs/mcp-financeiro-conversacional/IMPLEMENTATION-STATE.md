@@ -29,16 +29,19 @@
 - [x] MCPF-P2-08: Revisar diffs e criar commits
 
 ## Phase 3 -- Motor de prévia e confirmação com categorias e receitas
-- [ ] MCPF-P3-01: Criar modelo persistido de prévia
-- [ ] MCPF-P3-02: Criar McpOperationJournal canônico
-- [ ] MCPF-P3-03: Implementar reserva e confirmação de uso único
-- [ ] MCPF-P3-04: Expor escritas confirmadas de categorias
-- [ ] MCPF-P3-05: Expor escritas confirmadas de receitas
-- [ ] MCPF-P3-06: Implementar effect markers e reconciliação
-- [ ] MCPF-P3-07: Completar conteúdo seguro do journal
-- [ ] MCPF-P3-08: Exibir histórico detalhado de escritas
-- [ ] MCPF-P3-09: Testar confirmação, concorrência e interrupções
-- [ ] MCPF-P3-10: Revisar diffs e criar commits
+
+**Status: completed**
+
+- [x] MCPF-P3-01: Criar modelo persistido de prévia
+- [x] MCPF-P3-02: Criar McpOperationJournal canônico
+- [x] MCPF-P3-03: Implementar reserva e confirmação de uso único
+- [x] MCPF-P3-04: Expor escritas confirmadas de categorias
+- [x] MCPF-P3-05: Expor escritas confirmadas de receitas
+- [x] MCPF-P3-06: Implementar effect markers e reconciliação
+- [x] MCPF-P3-07: Completar conteúdo seguro do journal
+- [x] MCPF-P3-08: Exibir histórico detalhado de escritas
+- [x] MCPF-P3-09: Testar confirmação, concorrência e interrupções
+- [x] MCPF-P3-10: Revisar diffs e criar commits
 
 ## Phase 4 -- Escritas completas de despesas, investimentos e custos fixos
 - [ ] MCPF-P4-01: Implementar escritas confirmadas de despesas

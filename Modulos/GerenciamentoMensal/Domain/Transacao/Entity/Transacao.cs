@@ -14,6 +14,9 @@ public abstract class Transacao : EntityBase
     public string UsuarioId { get; protected set; }
     public Usuario Usuario { get; protected set; }
     public DateTime DataCriacao { get; set; }
+    public string McpOperationId { get; private set; }
+    public string LastMcpOperationId { get; private set; }
+    public string LastMcpResultHash { get; private set; }
 
     protected Transacao() { }
 
@@ -53,6 +56,20 @@ public abstract class Transacao : EntityBase
         }
         else
             throw new DomainValidatorException("Categoria informada invalida para vinculo.");
+    }
+
+    public void MarcarCriacaoMcp(string operationId)
+    {
+        if (string.IsNullOrWhiteSpace(Id))
+            Id = Guid.NewGuid().ToString("N")[..24];
+        if (string.IsNullOrWhiteSpace(McpOperationId))
+            McpOperationId = operationId;
+    }
+
+    public void MarcarAlteracaoMcp(string operationId, string resultHash)
+    {
+        LastMcpOperationId = operationId;
+        LastMcpResultHash = resultHash;
     }
 
     protected abstract bool CategoriaEhValida(Categoria categoria);

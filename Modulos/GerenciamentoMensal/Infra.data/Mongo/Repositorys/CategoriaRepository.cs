@@ -87,4 +87,52 @@ public class CategoriaRepository : RepositoryMongoBase<Categoria>, ICategoriaRep
 
         return await _entityCollection.Find(resultFilter).SortByDescending(x => x.Id).ToListAsync();
     }
+
+    public Task<Categoria?> TryUpdateMcpAsync(
+        string id,
+        string userId,
+        string expectedName,
+        TipoCategoria expectedType,
+        string proposedName,
+        TipoCategoria proposedType,
+        string operationId,
+        string resultHash,
+        CancellationToken cancellationToken = default)
+    {
+        var filter = Builders<Categoria>.Filter.Where(item =>
+            item.Id == id &&
+            item.UsuarioId == userId &&
+            item.Nome == expectedName &&
+            item.Tipo == expectedType);
+        var update = Builders<Categoria>.Update
+            .Set(item => item.Nome, proposedName)
+            .Set(item => item.Tipo, proposedType)
+            .Set(item => item.LastMcpOperationId, operationId)
+            .Set(item => item.LastMcpResultHash, resultHash);
+        return _entityCollection.FindOneAndUpdateAsync(
+            filter,
+            update,
+            new FindOneAndUpdateOptions<Categoria>
+            {
+                ReturnDocument = ReturnDocument.After
+            },
+            cancellationToken);
+    }
+
+    public async Task<bool> TryDeleteMcpAsync(
+        string id,
+        string userId,
+        string expectedName,
+        TipoCategoria expectedType,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _entityCollection.DeleteOneAsync(
+            item =>
+                item.Id == id &&
+                item.UsuarioId == userId &&
+                item.Nome == expectedName &&
+                item.Tipo == expectedType,
+            cancellationToken);
+        return result.DeletedCount == 1;
+    }
 }

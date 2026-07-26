@@ -40,6 +40,37 @@ paginação em andamento. A troca invalida intencionalmente todos os cursores em
 a chave anterior; cursores não são dados persistentes nem devem ser reaproveitados após a
 rotação.
 
+## Escritas em duas etapas
+
+As ferramentas de escrita são publicadas somente quando
+`MCP_WRITE_TOOLS_ENABLED=true`. Categorias e receitas usam uma prévia imutável antes de
+qualquer efeito financeiro. A prévia:
+
+- é vinculada ao titular, à conexão, ao `requestId` e ao hash canônico do payload;
+- expira para confirmação depois de 15 minutos;
+- exige `APPLY_CHANGES` para criação/alteração ou `DELETE_PERMANENTLY` para exclusão;
+- pode ser confirmada ou cancelada apenas uma vez;
+- mantém o payload estruturado criptografado por no máximo 24 horas.
+
+`MCP_PREVIEW_ENCRYPTION_KEY` é obrigatória fora de `Development` quando as ferramentas de
+escrita estão ativas. O valor deve ser base64 de exatamente 32 bytes aleatórios, ser
+mantido no gerenciador de segredos e permanecer igual em todas as instâncias do ambiente.
+A rotação deve preservar a chave anterior enquanto existirem prévias ou operações reconciliáveis;
+trocar a chave imediatamente torna esses payloads irrecuperáveis e força classificação
+segura como `Unknown`.
+
+O MongoDB standalone não oferece transação entre prévia, journal e registro financeiro.
+Por isso, `McpOperationJournal` é criado antes do efeito e funciona como auditoria
+canônica, recibo idempotente e fonte para consulta de status. Leases, compare-and-set e
+marcadores `McpOperationId`/`LastMcpOperationId` permitem comprovar ou retomar um efeito
+com o mesmo `operationId`.
+
+O reconciliador consulta leases vencidos. Ele só retoma dentro da janela operacional de
+15 minutos e depois de procurar o marcador do efeito. Uma exclusão cujo alvo já está
+ausente permanece `Unknown` quando a causalidade não pode ser provada; ela nunca é
+repetida automaticamente. Clientes devem consultar `finanmap_operation_status_get` e não
+reenviar uma escrita com resultado `unknown`.
+
 ## Compatibilidade mínima
 
 O cliente precisa implementar Streamable HTTP da revisão `2025-11-25`, descoberta OAuth,

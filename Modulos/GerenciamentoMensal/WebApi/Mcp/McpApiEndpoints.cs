@@ -127,7 +127,7 @@ public static class McpApiEndpoints
             var auditEvent = await repository.GetOwnedAsync(id, user.Id, cancellationToken);
             return auditEvent is null
                 ? Results.NotFound()
-                : Results.Ok(McpHttpDtoMapper.Map(auditEvent));
+                : Results.Ok(McpHttpDtoMapper.MapDetail(auditEvent));
         });
 
         group.MapGet("/authorization-interactions/{id}", async (

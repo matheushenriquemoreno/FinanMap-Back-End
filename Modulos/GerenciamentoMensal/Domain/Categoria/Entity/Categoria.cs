@@ -8,6 +8,9 @@ public class Categoria : EntityBase
     public string Nome { get; set; }
     public string UsuarioId { get; set; }
     public TipoCategoria Tipo { get; set; }
+    public string McpOperationId { get; private set; }
+    public string LastMcpOperationId { get; private set; }
+    public string LastMcpResultHash { get; private set; }
 
     protected Categoria()
     {
@@ -36,5 +39,19 @@ public class Categoria : EntityBase
     {
         this.Nome = nome;
         this.ValidarDados();
+    }
+
+    public void MarcarCriacaoMcp(string operationId)
+    {
+        if (string.IsNullOrWhiteSpace(Id))
+            Id = Guid.NewGuid().ToString("N")[..24];
+        if (string.IsNullOrWhiteSpace(McpOperationId))
+            McpOperationId = operationId;
+    }
+
+    public void MarcarAlteracaoMcp(string operationId, string resultHash)
+    {
+        LastMcpOperationId = operationId;
+        LastMcpResultHash = resultHash;
     }
 }

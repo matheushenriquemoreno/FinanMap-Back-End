@@ -7,4 +7,7 @@ public class CreateTransacaoDTO
     public string Descricao { get; set; }
     public decimal Valor { get; set; }
     public string CategoriaId { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string McpOperationId { get; set; }
 }

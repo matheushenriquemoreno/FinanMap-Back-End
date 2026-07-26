@@ -37,3 +37,39 @@ public enum McpOperationState
     Rejected,
     Unknown
 }
+
+public enum McpPreviewAction
+{
+    Create,
+    Update,
+    Delete,
+    Import
+}
+
+public enum McpRequiredDecision
+{
+    ApplyChanges,
+    DeletePermanently,
+    ImportValidItems
+}
+
+public enum McpPreviewState
+{
+    Prepared,
+    Executing,
+    Completed,
+    PartiallyCompleted,
+    Failed,
+    Cancelled,
+    Expired,
+    Unknown
+}
+
+public enum McpOperationStepState
+{
+    Pending,
+    Executing,
+    Completed,
+    Failed,
+    Unknown
+}

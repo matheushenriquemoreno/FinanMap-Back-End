@@ -163,7 +163,7 @@ public sealed class McpConnectionService : IMcpConnectionValidator
         }
 
         if (!connection.HasScope(requiredScope))
-            throw new McpConnectionInactiveException();
+            throw new McpScopeMissingException();
 
         if (!await _authorizationGrants.IsActiveAsync(connection.AuthorizationId, cancellationToken))
         {
@@ -213,6 +213,9 @@ public sealed class McpConnectionNotFoundException()
 
 public sealed class McpConnectionInactiveException()
     : Exception("Conexão MCP inativa, expirada ou sem escopo.");
+
+public sealed class McpScopeMissingException()
+    : Exception("Conexão MCP sem o escopo necessário.");
 
 public sealed class McpAuthorizationInteractionNotFoundException()
     : Exception("Interação de autorização MCP não encontrada.");

@@ -1,3 +1,5 @@
+#nullable enable
+
 using Application.DTOs;
 using Domain.Enum;
 using System.Text.Json.Serialization;
@@ -14,7 +16,8 @@ public sealed record McpCallContext(
 public sealed record McpCategoriesInput(
     TipoCategoria? Tipo,
     string? Text,
-    int Limit = 50);
+    int Limit = 50,
+    string? Cursor = null);
 
 public sealed record McpCategoriesData(
     IReadOnlyList<ResultCategoriaDTO> Categories,
@@ -46,7 +49,8 @@ public sealed record McpPage(
     int Limit,
     int Count,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.Never)]
-    string? NextCursor);
+    string? NextCursor,
+    bool HasMore = false);
 
 public sealed record McpToolError(
     string Code,

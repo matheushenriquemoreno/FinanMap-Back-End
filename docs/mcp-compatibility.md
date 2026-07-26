@@ -16,6 +16,30 @@
 A integração usa apenas descoberta, autorização e contratos públicos de MCP/OAuth. Nenhuma
 ferramenta depende de API privada de um fornecedor de agentes.
 
+## Chave de assinatura dos cursores
+
+`MCP_CURSOR_SIGNING_KEY` é obrigatória quando o endpoint MCP está ativo fora de
+`Development`. Gere ao menos 32 bytes criptograficamente aleatórios, por exemplo em
+PowerShell:
+
+```powershell
+[Convert]::ToBase64String(
+    [Security.Cryptography.RandomNumberGenerator]::GetBytes(32)
+)
+```
+
+Armazene o valor exclusivamente no gerenciador de segredos do ambiente; não o grave no
+repositório, em arquivos de configuração versionados ou em logs. Todas as instâncias MCP
+do mesmo ambiente devem receber exatamente a mesma chave, que precisa permanecer estável
+entre reinícios e substituições de instância. Caso contrário, cursores ainda válidos serão
+rejeitados.
+
+A rotação deve ser coordenada: interrompa a emissão de cursores pela versão anterior,
+implante a mesma chave nova em todas as instâncias e oriente os clientes a reiniciar
+paginação em andamento. A troca invalida intencionalmente todos os cursores emitidos com
+a chave anterior; cursores não são dados persistentes nem devem ser reaproveitados após a
+rotação.
+
 ## Compatibilidade mínima
 
 O cliente precisa implementar Streamable HTTP da revisão `2025-11-25`, descoberta OAuth,

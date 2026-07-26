@@ -10,6 +10,8 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using Application.DTOs;
 using Application.Interfaces;
+using Application.Mcp.Interfaces;
+using Application.Mcp.Models;
 using Domain.Compartilhamento.Entity;
 using Domain.Entity;
 using Domain.Enum;
@@ -22,6 +24,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -42,6 +45,7 @@ public sealed class McpAuthenticatedInspectorSmokeTests(McpMongoFixture mongo)
         var baseUrl = $"http://127.0.0.1:{port}";
         var ownerId = $"inspector-owner-{Guid.NewGuid():N}";
         var logs = new OAuthLogCanary();
+        var toolCalls = new FixtureToolCallTracker();
         await using var host = await StartHostAsync(baseUrl, ownerId);
         using var client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
         {
@@ -148,11 +152,17 @@ public sealed class McpAuthenticatedInspectorSmokeTests(McpMongoFixture mongo)
         Assert.True(
             invalidTokenResponse.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Unauthorized);
 
-        var result = await RunInspectorAsync($"{baseUrl}/mcp", accessToken);
+        var result = await RunInspectorMatrixAsync(
+            $"{baseUrl}/mcp", accessToken);
 
         Assert.True(result.ExitCode == 0, result.Output);
         Assert.Contains("Categoria fixture", result.Output);
         Assert.Contains("success", result.Output, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("categories", toolCalls.Domains);
+        Assert.Contains("incomes", toolCalls.Domains);
+        Assert.Contains("expenses", toolCalls.Domains);
+        Assert.Contains("investments", toolCalls.Domains);
+        Assert.Contains("fixed-costs", toolCalls.Domains);
         Assert.True(
             !logs.ContainsAny(
                 verifier,
@@ -202,8 +212,13 @@ public sealed class McpAuthenticatedInspectorSmokeTests(McpMongoFixture mongo)
             builder.Services.AddScoped<IMcpAuditQueryRepository>(
                 provider => provider.GetRequiredService<McpOperationJournalRepository>());
             builder.Services.AddSingleton<IUsuarioLogado>(new FixtureUsuarioLogado(fixtureOwner));
+            builder.Services.AddSingleton(toolCalls);
             builder.Services.AddScoped<ICategoriaService, FixtureCategoriaService>();
             builder.Services.AddMcpFinanceiro(builder.Configuration, builder.Environment);
+            builder.Services.RemoveAll<IMcpFinancialReadSource>();
+            builder.Services.AddScoped<
+                IMcpFinancialReadSource,
+                FixtureFinancialReadSource>();
 
             var application = builder.Build();
             application.UseRateLimiter();
@@ -217,6 +232,190 @@ public sealed class McpAuthenticatedInspectorSmokeTests(McpMongoFixture mongo)
             await application.StartAsync();
             return application;
         }
+    }
+
+    [Fact]
+    public async Task Inspector_cli_proves_filtered_content_empty_state_and_oauth_owner_isolation_a_b()
+    {
+        var suffix = Guid.NewGuid().ToString("N");
+        var ownerA = $"OWNER_A_MARKER_{suffix}";
+        var ownerB = $"OWNER_B_MARKER_{suffix}";
+        var baseUrlA = $"http://127.0.0.1:{AllocateLoopbackPort()}";
+        var baseUrlB = $"http://127.0.0.1:{AllocateLoopbackPort()}";
+        var logs = new OAuthLogCanary();
+        var calls = new FixtureToolCallTracker();
+        await using var hostA = await StartOwnerHostAsync(
+            mongo.ConnectionString, baseUrlA, ownerA, logs, calls);
+        await using var hostB = await StartOwnerHostAsync(
+            mongo.ConnectionString, baseUrlB, ownerB, logs, calls);
+        using var clientA = new HttpClient(
+            new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            BaseAddress = new Uri(baseUrlA)
+        };
+        using var clientB = new HttpClient(
+            new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            BaseAddress = new Uri(baseUrlB)
+        };
+
+        var oauthA = await AuthorizeOwnerAsync(clientA, baseUrlA, "A");
+        var oauthB = await AuthorizeOwnerAsync(clientB, baseUrlB, "B");
+        var matrixA = await RunOwnerInspectorMatrixAsync(
+            $"{baseUrlA}/mcp", oauthA.AccessToken, ownerA);
+        var matrixB = await RunOwnerInspectorMatrixAsync(
+            $"{baseUrlB}/mcp", oauthB.AccessToken, ownerB);
+
+        AssertOwnerMatrix(matrixA, ownerA, ownerB);
+        AssertOwnerMatrix(matrixB, ownerB, ownerA);
+        foreach (var owner in new[] { ownerA, ownerB })
+            AssertTrackedOwnerMatrix(calls.Calls, owner);
+        Assert.True(
+            !logs.ContainsAny(
+                oauthA.Verifier,
+                oauthA.Code,
+                oauthA.AccessToken,
+                oauthA.RefreshToken,
+                oauthB.Verifier,
+                oauthB.Code,
+                oauthB.AccessToken,
+                oauthB.RefreshToken),
+            "O canário detectou material OAuth secreto da matriz A/B em logs habilitados.");
+    }
+
+    private static async Task<WebApplication> StartOwnerHostAsync(
+        string mongoConnectionString,
+        string publicBaseUrl,
+        string ownerId,
+        OAuthLogCanary logs,
+        FixtureToolCallTracker calls)
+    {
+        var mongoClient = new MongoClient(mongoConnectionString);
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            EnvironmentName = Environments.Development
+        });
+        builder.WebHost.UseKestrel().UseUrls(publicBaseUrl);
+        builder.Logging.ClearProviders();
+        builder.Logging.SetMinimumLevel(LogLevel.Trace);
+        builder.Logging.AddProvider(logs);
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Mcp:EndpointEnabled"] = "true",
+            ["Mcp:HistoryEnabled"] = "true",
+            ["MCP_PUBLIC_BASE_URL"] = publicBaseUrl,
+            ["MCP_CONSENT_URL"] = "http://frontend.fixture/mcp-consent"
+        });
+        builder.Services.AddHttpContextAccessor();
+        builder.Services
+            .AddAuthentication(FixtureAuthenticationHandler.SchemeName)
+            .AddScheme<AuthenticationSchemeOptions, FixtureAuthenticationHandler>(
+                FixtureAuthenticationHandler.SchemeName, _ => { });
+        builder.Services.AddAuthorization();
+        builder.Services.AddRateLimiter(_ => { });
+        builder.Services.AddSingleton<IMongoClient>(mongoClient);
+        builder.Services.AddSingleton(
+            mongoClient.GetDatabase($"FinanMapInspector_{Guid.NewGuid():N}"));
+        builder.Services.AddScoped<IMcpConnectionRepository, McpConnectionRepository>();
+        builder.Services.AddScoped<
+            IMcpAuthorizationInteractionRepository,
+            McpAuthorizationInteractionRepository>();
+        builder.Services.AddScoped<McpOperationJournalRepository>();
+        builder.Services.AddScoped<IMcpOperationJournalRepository>(
+            provider => provider.GetRequiredService<McpOperationJournalRepository>());
+        builder.Services.AddScoped<IMcpAuditQueryRepository>(
+            provider => provider.GetRequiredService<McpOperationJournalRepository>());
+        builder.Services.AddSingleton<IUsuarioLogado>(
+            new FixtureUsuarioLogado(ownerId));
+        builder.Services.AddSingleton(calls);
+        builder.Services.AddScoped<ICategoriaService, FixtureCategoriaService>();
+        builder.Services.AddMcpFinanceiro(builder.Configuration, builder.Environment);
+        builder.Services.RemoveAll<IMcpFinancialReadSource>();
+        builder.Services.AddScoped<
+            IMcpFinancialReadSource,
+            FixtureFinancialReadSource>();
+
+        var application = builder.Build();
+        application.UseRateLimiter();
+        application.UseMcpTransportSecurity();
+        application.UseAuthentication();
+        application.UseAuthorization();
+        application.MapMcpTransport();
+        application.MapMcpOAuthEndpoints();
+        application.MapMcpOAuthAuthorizeEndpoint();
+        application.MapMcpApiEndpoints();
+        await application.StartAsync();
+        return application;
+    }
+
+    private static async Task<OAuthFixtureSession> AuthorizeOwnerAsync(
+        HttpClient client,
+        string baseUrl,
+        string label)
+    {
+        var registration = await RegisterClientAsync(client);
+        var verifier =
+            $"mcp-code-verifier-{label}-{Microsoft.AspNetCore.WebUtilities.Base64UrlTextEncoder.Encode(RandomNumberGenerator.GetBytes(48))}";
+        var challenge = Microsoft.AspNetCore.WebUtilities.Base64UrlTextEncoder.Encode(
+            SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
+        var redirectUri = "http://127.0.0.1:6274/oauth/callback";
+        var state = Microsoft.AspNetCore.WebUtilities.Base64UrlTextEncoder.Encode(
+            RandomNumberGenerator.GetBytes(24));
+        var authorizeUrl = QueryHelpers.AddQueryString(
+            "/oauth/authorize",
+            new Dictionary<string, string?>
+            {
+                ["client_id"] = registration.ClientId,
+                ["redirect_uri"] = redirectUri,
+                ["response_type"] = "code",
+                ["scope"] = "mcp:read mcp:audit",
+                ["state"] = state,
+                ["code_challenge"] = challenge,
+                ["code_challenge_method"] = "S256",
+                ["resource"] = $"{baseUrl}/mcp"
+            });
+
+        using var consentRedirect = await client.GetAsync(authorizeUrl);
+        Assert.Equal(HttpStatusCode.Redirect, consentRedirect.StatusCode);
+        var consentQuery = QueryHelpers.ParseQuery(
+            consentRedirect.Headers.Location!.Query);
+        var interactionId = consentQuery["mcpAuthorizationInteraction"].Single()!;
+        using var approval = await client.PostAsJsonAsync(
+            $"/api/mcp/authorization-interactions/{interactionId}/approve",
+            new { scopes = new[] { "mcp:read", "mcp:audit" } });
+        approval.EnsureSuccessStatusCode();
+        var continuation = approval.Headers
+            .GetValues("X-Mcp-Authorization-Continue")
+            .Single();
+        using var callback = await client.GetAsync(continuation);
+        Assert.Equal(HttpStatusCode.Redirect, callback.StatusCode);
+        var callbackQuery = QueryHelpers.ParseQuery(
+            callback.Headers.Location!.Query);
+        Assert.Equal(state, callbackQuery["state"].Single());
+        var code = callbackQuery["code"].Single()!;
+        using var tokenResponse = await client.PostAsync(
+            "/oauth/token",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["grant_type"] = "authorization_code",
+                ["client_id"] = registration.ClientId,
+                ["redirect_uri"] = redirectUri,
+                ["code"] = code,
+                ["code_verifier"] = verifier,
+                ["resource"] = $"{baseUrl}/mcp"
+            }));
+        tokenResponse.EnsureSuccessStatusCode();
+        using var tokenJson = JsonDocument.Parse(
+            await tokenResponse.Content.ReadAsStringAsync());
+        var accessToken = tokenJson.RootElement
+            .GetProperty("access_token")
+            .GetString()!;
+        var refreshToken = tokenJson.RootElement.TryGetProperty(
+            "refresh_token", out var refreshTokenElement)
+            ? refreshTokenElement.GetString()
+            : null;
+        return new OAuthFixtureSession(
+            verifier, code, accessToken, refreshToken);
     }
 
     private static async Task AssertDenialContinuationAsync(
@@ -287,9 +486,250 @@ public sealed class McpAuthenticatedInspectorSmokeTests(McpMongoFixture mongo)
             json.RootElement.GetProperty("client_name").GetString()!);
     }
 
-    private static async Task<(int ExitCode, string Output)> RunInspectorAsync(
+    private static async Task<(int ExitCode, string Output)> RunInspectorMatrixAsync(
         string endpoint,
         string accessToken)
+    {
+        var calls = new[]
+        {
+            new InspectorToolCall(
+                "finanmap_categories_list",
+                new Dictionary<string, string>()),
+            new InspectorToolCall(
+                "finanmap_incomes_list",
+                new Dictionary<string, string>
+                {
+                    ["from"] = "2026-01",
+                    ["to"] = "2026-01"
+                }),
+            new InspectorToolCall(
+                "finanmap_expenses_list",
+                new Dictionary<string, string>
+                {
+                    ["from"] = "2026-01",
+                    ["to"] = "2026-01"
+                }),
+            new InspectorToolCall(
+                "finanmap_investments_list",
+                new Dictionary<string, string>
+                {
+                    ["from"] = "2026-01",
+                    ["to"] = "2026-01"
+                }),
+            new InspectorToolCall(
+                "finanmap_fixed_costs_list",
+                new Dictionary<string, string>())
+        };
+        var output = new StringBuilder();
+        foreach (var call in calls)
+        {
+            var result = await RunInspectorAsync(
+                endpoint,
+                accessToken,
+                call.ToolName,
+                call.Arguments);
+            output.AppendLine($"[{call.ToolName}]");
+            output.AppendLine(result.Output);
+            if (result.ExitCode != 0)
+                return (result.ExitCode, output.ToString());
+        }
+
+        return (0, output.ToString());
+    }
+
+    private static async Task<OwnerInspectorMatrix> RunOwnerInspectorMatrixAsync(
+        string endpoint,
+        string accessToken,
+        string ownerMarker)
+    {
+        var calls = new[]
+        {
+            new InspectorToolCall(
+                "categories",
+                "finanmap_categories_list",
+                new Dictionary<string, string>
+                {
+                    ["tipo"] = "Despesa",
+                    ["text"] = "selected",
+                    ["limit"] = "1"
+                }),
+            new InspectorToolCall(
+                "incomes",
+                "finanmap_incomes_list",
+                TransactionArguments(ownerMarker, "income", "2026-01")),
+            new InspectorToolCall(
+                "expenses",
+                "finanmap_expenses_list",
+                TransactionArguments(ownerMarker, "expense", "2026-01")),
+            new InspectorToolCall(
+                "investments",
+                "finanmap_investments_list",
+                TransactionArguments(ownerMarker, "investment", "2026-01")),
+            new InspectorToolCall(
+                "fixed-costs",
+                "finanmap_fixed_costs_list",
+                new Dictionary<string, string>
+                {
+                    ["active"] = "true",
+                    ["category"] = $"{ownerMarker}-fixed-category",
+                    ["limit"] = "1"
+                }),
+            new InspectorToolCall(
+                "empty",
+                "finanmap_incomes_list",
+                TransactionArguments(ownerMarker, "income", "2026-02"))
+        };
+        var outputs = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var call in calls)
+        {
+            var result = await RunInspectorAsync(
+                endpoint,
+                accessToken,
+                call.ToolName,
+                call.Arguments);
+            outputs[call.Label] = result.Output;
+            if (result.ExitCode != 0)
+            {
+                return new OwnerInspectorMatrix(
+                    result.ExitCode,
+                    outputs);
+            }
+        }
+
+        return new OwnerInspectorMatrix(0, outputs);
+    }
+
+    private static Dictionary<string, string> TransactionArguments(
+        string ownerMarker,
+        string domain,
+        string month) =>
+        new()
+        {
+            ["from"] = month,
+            ["to"] = month,
+            ["category"] = $"{ownerMarker}-{domain}-category",
+            ["description"] = "selected",
+            ["limit"] = "1"
+        };
+
+    private static void AssertOwnerMatrix(
+        OwnerInspectorMatrix matrix,
+        string ownerMarker,
+        string otherOwnerMarker)
+    {
+        Assert.True(
+            matrix.ExitCode == 0,
+            string.Join(
+                Environment.NewLine,
+                matrix.Outputs.Select(output =>
+                    $"[{output.Key}]{Environment.NewLine}{output.Value}")));
+        foreach (var domain in new[]
+        {
+            "categories",
+            "incomes",
+            "expenses",
+            "investments",
+            "fixed-costs"
+        })
+        {
+            var output = matrix.Outputs[domain];
+            Assert.Contains($"{ownerMarker}-{domain}-match", output);
+            Assert.DoesNotContain($"{ownerMarker}-{domain}-other", output);
+            Assert.DoesNotContain(otherOwnerMarker, output);
+            Assert.Contains("success", output, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("page", output, StringComparison.OrdinalIgnoreCase);
+        }
+        Assert.DoesNotContain(
+            $"{ownerMarker}-categories-type-decoy",
+            matrix.Outputs["categories"]);
+        Assert.DoesNotContain(
+            $"{ownerMarker}-categories-text-decoy",
+            matrix.Outputs["categories"]);
+        Assert.DoesNotContain(
+            $"{ownerMarker}-fixed-costs-active-decoy",
+            matrix.Outputs["fixed-costs"]);
+        Assert.DoesNotContain(
+            $"{ownerMarker}-fixed-costs-category-decoy",
+            matrix.Outputs["fixed-costs"]);
+        foreach (var domain in new[] { "incomes", "expenses", "investments" })
+        {
+            Assert.DoesNotContain(
+                $"{ownerMarker}-{domain}-category-decoy",
+                matrix.Outputs[domain]);
+            Assert.DoesNotContain(
+                $"{ownerMarker}-{domain}-description-decoy",
+                matrix.Outputs[domain]);
+            Assert.Contains(
+                "BRL",
+                matrix.Outputs[domain],
+                StringComparison.Ordinal);
+        }
+        var empty = matrix.Outputs["empty"];
+        Assert.Contains("empty", empty, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("0.00", empty, StringComparison.Ordinal);
+        Assert.Contains(
+            "\"count\": 0",
+            empty,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(otherOwnerMarker, empty);
+    }
+
+    private static void AssertTrackedOwnerMatrix(
+        IReadOnlyCollection<FixtureSourceCall> calls,
+        string ownerMarker)
+    {
+        Assert.Equal(6, calls.Count(call => call.UserId == ownerMarker));
+        Assert.Contains(
+            calls,
+            call => call.UserId == ownerMarker &&
+                    call.Domain == "categories" &&
+                    call.Kind is null &&
+                    call.From is null &&
+                    call.To is null &&
+                    call.CategoryType == TipoCategoria.Despesa &&
+                    call.Description == "selected");
+        Assert.Contains(
+            calls,
+            call => call.UserId == ownerMarker &&
+                    call.Domain == "incomes" &&
+                    call.Kind == McpFinancialKind.Income &&
+                    call.From == new DateOnly(2026, 1, 1) &&
+                    call.To == new DateOnly(2026, 1, 31));
+        Assert.Contains(
+            calls,
+            call => call.UserId == ownerMarker &&
+                    call.Domain == "expenses" &&
+                    call.Kind == McpFinancialKind.Expense &&
+                    call.From == new DateOnly(2026, 1, 1) &&
+                    call.To == new DateOnly(2026, 1, 31));
+        Assert.Contains(
+            calls,
+            call => call.UserId == ownerMarker &&
+                    call.Domain == "investments" &&
+                    call.Kind == McpFinancialKind.Investment &&
+                    call.From == new DateOnly(2026, 1, 1) &&
+                    call.To == new DateOnly(2026, 1, 31));
+        Assert.Contains(
+            calls,
+            call => call.UserId == ownerMarker &&
+                    call.Domain == "fixed-costs" &&
+                    call.Kind is null &&
+                    call.From is null &&
+                    call.To is null);
+        Assert.Contains(
+            calls,
+            call => call.UserId == ownerMarker &&
+                    call.Domain == "incomes" &&
+                    call.Kind == McpFinancialKind.Income &&
+                    call.From == new DateOnly(2026, 2, 1) &&
+                    call.To == new DateOnly(2026, 2, 28));
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunInspectorAsync(
+        string endpoint,
+        string accessToken,
+        string toolName,
+        IReadOnlyDictionary<string, string> toolArguments)
     {
         var nodeRoot = OperatingSystem.IsWindows()
             ? Path.Combine(
@@ -322,13 +762,18 @@ public sealed class McpAuthenticatedInspectorSmokeTests(McpMongoFixture mongo)
             "--method",
             "tools/call",
             "--tool-name",
-            "finanmap_categories_list",
-            "--header",
-            $"Authorization: Bearer {accessToken}"
+            toolName
         })
         {
             startInfo.ArgumentList.Add(argument);
         }
+        foreach (var argument in toolArguments)
+        {
+            startInfo.ArgumentList.Add("--tool-arg");
+            startInfo.ArgumentList.Add($"{argument.Key}={argument.Value}");
+        }
+        startInfo.ArgumentList.Add("--header");
+        startInfo.ArgumentList.Add($"Authorization: Bearer {accessToken}");
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Não foi possível iniciar o MCP Inspector.");
@@ -340,6 +785,29 @@ public sealed class McpAuthenticatedInspectorSmokeTests(McpMongoFixture mongo)
             .Replace(accessToken, "[REDACTED]", StringComparison.Ordinal);
         return (process.ExitCode, output);
     }
+
+    private sealed record InspectorToolCall(
+        string Label,
+        string ToolName,
+        IReadOnlyDictionary<string, string> Arguments)
+    {
+        public InspectorToolCall(
+            string toolName,
+            IReadOnlyDictionary<string, string> arguments)
+            : this(toolName, toolName, arguments)
+        {
+        }
+    }
+
+    private sealed record OwnerInspectorMatrix(
+        int ExitCode,
+        IReadOnlyDictionary<string, string> Outputs);
+
+    private sealed record OAuthFixtureSession(
+        string Verifier,
+        string Code,
+        string AccessToken,
+        string? RefreshToken);
 
     private static int AllocateLoopbackPort()
     {
@@ -438,24 +906,76 @@ public sealed class McpAuthenticatedInspectorSmokeTests(McpMongoFixture mongo)
         public NivelPermissao? PermissaoAtual => null;
     }
 
-    private sealed class FixtureCategoriaService : ICategoriaService
+    private sealed class FixtureCategoriaService(
+        FixtureToolCallTracker calls,
+        IUsuarioLogado usuarioLogado)
+        : ICategoriaService
     {
         public Task<Result<List<ResultCategoriaDTO>>> ObterCategoria(
             TipoCategoria tipoCategoria,
             string descricao)
         {
-            var result = tipoCategoria == TipoCategoria.Despesa
-                ? new List<ResultCategoriaDTO>
+            calls.Record(new FixtureSourceCall(
+                usuarioLogado.Id,
+                "categories",
+                null,
+                null,
+                null,
+                tipoCategoria,
+                descricao));
+
+            var ownerMarker = usuarioLogado.Id;
+            if (!ownerMarker.StartsWith("OWNER_", StringComparison.Ordinal))
+            {
+                var legacyResult = tipoCategoria == TipoCategoria.Despesa
+                    ? new List<ResultCategoriaDTO>
+                    {
+                        new()
+                        {
+                            Id = "fixture-category",
+                            Nome = "Categoria fixture",
+                            Tipo = TipoCategoria.Despesa
+                        }
+                    }
+                    : [];
+                return Task.FromResult(Result.Success(legacyResult));
+            }
+
+            if (tipoCategoria != TipoCategoria.Despesa)
+            {
+                return Task.FromResult(Result.Success(new List<ResultCategoriaDTO>
                 {
                     new()
                     {
-                        Id = "fixture-category",
-                        Nome = "Categoria fixture",
+                        Id = $"{ownerMarker}-categories-type-decoy",
+                        Nome = $"000-{ownerMarker}-categories-type-decoy-selected",
+                        Tipo = tipoCategoria
+                    }
+                }));
+            }
+
+            if (!string.Equals(descricao, "selected", StringComparison.Ordinal))
+            {
+                return Task.FromResult(Result.Success(new List<ResultCategoriaDTO>
+                {
+                    new()
+                    {
+                        Id = $"{ownerMarker}-categories-text-decoy",
+                        Nome = $"000-{ownerMarker}-categories-text-decoy",
                         Tipo = TipoCategoria.Despesa
                     }
+                }));
+            }
+
+            return Task.FromResult(Result.Success(new List<ResultCategoriaDTO>
+            {
+                new()
+                {
+                    Id = $"{ownerMarker}-categories-match",
+                    Nome = $"{ownerMarker}-categories-match-selected",
+                    Tipo = TipoCategoria.Despesa
                 }
-                : [];
-            return Task.FromResult(Result.Success(result));
+            }));
         }
 
         public Task<Result<ResultCategoriaDTO>> Adicionar(CreateCategoriaDTO createDTO) =>
@@ -466,4 +986,128 @@ public sealed class McpAuthenticatedInspectorSmokeTests(McpMongoFixture mongo)
         public Task<Result<ResultCategoriaDTO>> ObterPeloID(string id) =>
             throw new NotSupportedException();
     }
+
+    private sealed class FixtureFinancialReadSource(FixtureToolCallTracker calls)
+        : IMcpFinancialReadSource
+    {
+        public Task<IReadOnlyList<McpFinancialSourceRecord>> GetTransactionsAsync(
+            string userId,
+            McpFinancialKind kind,
+            DateOnly from,
+            DateOnly to,
+            CancellationToken cancellationToken = default)
+        {
+            var domain = kind switch
+            {
+                McpFinancialKind.Income => "incomes",
+                McpFinancialKind.Expense => "expenses",
+                McpFinancialKind.Investment => "investments",
+                _ => "unknown"
+            };
+            calls.Record(new FixtureSourceCall(
+                userId,
+                domain,
+                kind,
+                from,
+                to));
+
+            if (from.Year != 2026 || from.Month != 1 ||
+                to.Year != 2026 || to.Month != 1)
+            {
+                return Task.FromResult<IReadOnlyList<McpFinancialSourceRecord>>([]);
+            }
+
+            return Task.FromResult<IReadOnlyList<McpFinancialSourceRecord>>(
+            [
+                new(
+                    $"{userId}-{domain}-category-decoy",
+                    kind,
+                    2026,
+                    1,
+                    $"{userId}-{domain}-category-decoy-selected",
+                    $"{userId}-{domain[..^1]}-other-category",
+                    $"{userId}-{domain[..^1]}-other-category",
+                    999.99m),
+                new(
+                    $"{userId}-{domain}-description-decoy",
+                    kind,
+                    2026,
+                    1,
+                    $"{userId}-{domain}-description-decoy",
+                    $"{userId}-{domain[..^1]}-category",
+                    $"{userId}-{domain[..^1]}-category",
+                    888.88m),
+                new(
+                    $"{userId}-{domain}-match",
+                    kind,
+                    2026,
+                    1,
+                    $"{userId}-{domain}-match-selected",
+                    $"{userId}-{domain[..^1]}-category",
+                    $"{userId}-{domain[..^1]}-category",
+                    123.45m)
+            ]);
+        }
+
+        public Task<IReadOnlyList<McpFixedCostSourceRecord>> GetFixedCostsAsync(
+            string userId,
+            CancellationToken cancellationToken = default)
+        {
+            calls.Record(new FixtureSourceCall(
+                userId,
+                "fixed-costs",
+                null,
+                null,
+                null));
+            return Task.FromResult<IReadOnlyList<McpFixedCostSourceRecord>>(
+            [
+                new(
+                    $"{userId}-fixed-costs-active-decoy",
+                    $"{userId}-fixed-costs-active-decoy",
+                    1,
+                    $"{userId}-fixed-category",
+                    $"{userId}-fixed-category",
+                    false),
+                new(
+                    $"{userId}-fixed-costs-category-decoy",
+                    $"{userId}-fixed-costs-category-decoy",
+                    2,
+                    $"{userId}-fixed-other-category",
+                    $"{userId}-fixed-other-category",
+                    true),
+                new(
+                    $"{userId}-fixed-costs-match",
+                    $"{userId}-fixed-costs-match",
+                    10,
+                    $"{userId}-fixed-category",
+                    $"{userId}-fixed-category",
+                    true)
+            ]);
+        }
+    }
+
+    private sealed class FixtureToolCallTracker
+    {
+        private readonly ConcurrentQueue<FixtureSourceCall> _calls = new();
+
+        public IReadOnlyCollection<string> Domains =>
+            _calls.Select(call => call.Domain).ToArray();
+
+        public IReadOnlyCollection<FixtureSourceCall> Calls => _calls.ToArray();
+
+        public void Record(string domain) =>
+            _calls.Enqueue(new FixtureSourceCall(
+                string.Empty, domain, null, null, null));
+
+        public void Record(FixtureSourceCall call) => _calls.Enqueue(call);
+    }
+
+    private sealed record FixtureSourceCall(
+        string UserId,
+        string Domain,
+        McpFinancialKind? Kind,
+        DateOnly? From,
+        DateOnly? To,
+        TipoCategoria? CategoryType = null,
+        string? Description = null);
 }

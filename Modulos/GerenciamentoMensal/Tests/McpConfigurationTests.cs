@@ -49,6 +49,27 @@ public class McpConfigurationTests
         Assert.Null(exception);
     }
 
+    [Fact]
+    public void Enabled_production_endpoint_requires_stable_cursor_signing_key()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["MCP_FEATURE_ENABLED"] = "true",
+                ["MCP_PUBLIC_BASE_URL"] = "https://api.example.test"
+            })
+            .Build();
+        var services = new ServiceCollection();
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            services.AddMcpFinanceiro(
+                configuration,
+                new TestHostEnvironment(Environments.Production)));
+
+        Assert.Contains("MCP_CURSOR_SIGNING_KEY", exception.Message);
+        Assert.Contains("reinícios e instâncias", exception.Message);
+    }
+
     private sealed class TestHostEnvironment(string environmentName) : IHostEnvironment
     {
         public string EnvironmentName { get; set; } = environmentName;

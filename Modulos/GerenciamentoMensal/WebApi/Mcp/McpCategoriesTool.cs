@@ -29,6 +29,8 @@ public sealed class McpCategoriesTool(
         string? text = null,
         [Description("Quantidade máxima entre 1 e 200.")]
         int limit = 50,
+        [Description("Cursor opaco retornado pela página anterior.")]
+        string? cursor = null,
         CancellationToken cancellationToken = default)
     {
         var context = httpContextAccessor.HttpContext
@@ -47,7 +49,7 @@ public sealed class McpCategoriesTool(
 
         return service.ExecuteAsync(
             new McpCallContext(userId, connectionId, correlationId, ClientId: clientId),
-            new McpCategoriesInput(tipo, text, limit),
+            new McpCategoriesInput(tipo, text, limit, cursor),
             cancellationToken);
     }
 }

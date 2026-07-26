@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
 using Application.Mcp.Configuration;
 using Application.Mcp.Interfaces;
 using Application.Mcp.Services;
@@ -37,6 +39,20 @@ public static class McpServiceCollectionExtensions
         services.AddScoped<IMcpConnectionValidator>(
             provider => provider.GetRequiredService<McpConnectionService>());
         services.AddScoped<McpCategoriesToolService>();
+        services.AddScoped<IMcpFinancialReadSource, McpFinancialReadSource>();
+        services.AddScoped<McpFinancialReadService>();
+        var cursorKeySetting = configuration["MCP_CURSOR_SIGNING_KEY"];
+        if (endpointEnabled &&
+            !environment.IsDevelopment() &&
+            string.IsNullOrWhiteSpace(cursorKeySetting))
+        {
+            throw new InvalidOperationException(
+                "MCP_CURSOR_SIGNING_KEY é obrigatória fora do ambiente Development para manter cursores válidos entre reinícios e instâncias.");
+        }
+        var cursorKey = string.IsNullOrWhiteSpace(cursorKeySetting)
+            ? RandomNumberGenerator.GetBytes(32)
+            : SHA256.HashData(Encoding.UTF8.GetBytes(cursorKeySetting));
+        services.AddSingleton(new McpCursorCodec(cursorKey));
         services.AddSingleton<McpAuditSanitizer>();
         services.AddLogging(logging =>
             logging.AddFilter("OpenIddict", LogLevel.Warning));
@@ -47,7 +63,8 @@ public static class McpServiceCollectionExtensions
                 options.Stateless = true;
             })
             .AddAuthorizationFilters()
-            .WithTools<McpCategoriesTool>();
+            .WithTools<McpCategoriesTool>()
+            .WithTools<McpFinancialTools>();
 
         var openIddict = services.AddOpenIddict();
         openIddict.AddCore(options => options.UseMongoDb());

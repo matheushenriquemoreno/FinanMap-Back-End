@@ -17,14 +17,16 @@
 - [x] MCPF-P1-12: Revisar diffs e criar commits separados
 
 ## Phase 2 -- Consultas financeiras e dados para análise
-- [ ] MCPF-P2-01: Criar serviço de consulta MCP
-- [ ] MCPF-P2-02: Expor ferramentas read-only dos domínios financeiros
-- [ ] MCPF-P2-03: Expor ferramentas de análise e comparação
-- [ ] MCPF-P2-04: Padronizar respostas financeiras
-- [ ] MCPF-P2-05: Minimizar e redigir dados auditados
-- [ ] MCPF-P2-06: Completar dicas e prompts-base de leitura
-- [ ] MCPF-P2-07: Criar fixtures e testes de consulta
-- [ ] MCPF-P2-08: Revisar diffs e criar commits
+**Status: completed**
+
+- [x] MCPF-P2-01: Criar serviço de consulta MCP
+- [x] MCPF-P2-02: Expor ferramentas read-only dos domínios financeiros
+- [x] MCPF-P2-03: Expor ferramentas de análise e comparação
+- [x] MCPF-P2-04: Padronizar respostas financeiras
+- [x] MCPF-P2-05: Minimizar e redigir dados auditados
+- [x] MCPF-P2-06: Completar dicas e prompts-base de leitura
+- [x] MCPF-P2-07: Criar fixtures e testes de consulta
+- [x] MCPF-P2-08: Revisar diffs e criar commits
 
 ## Phase 3 -- Motor de prévia e confirmação com categorias e receitas
 - [ ] MCPF-P3-01: Criar modelo persistido de prévia

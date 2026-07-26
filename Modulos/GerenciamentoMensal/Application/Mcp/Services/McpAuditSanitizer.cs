@@ -1,3 +1,5 @@
+#nullable enable
+
 using System.Text.RegularExpressions;
 
 namespace Application.Mcp.Services;
@@ -7,14 +9,26 @@ public sealed partial class McpAuditSanitizer
     private static readonly HashSet<string> AllowedFields = new(StringComparer.OrdinalIgnoreCase)
     {
         "tipo",
-        "text",
+        "textFilter",
         "limit",
-        "cursor",
         "reasonCode",
         "status",
         "operationClass",
         "fromUtc",
-        "toUtc"
+        "toUtc",
+        "from",
+        "to",
+        "fromA",
+        "toA",
+        "fromB",
+        "toB",
+        "kind",
+        "categoryFilter",
+        "descriptionFilter",
+        "cursorPresent",
+        "active",
+        "quantity",
+        "metrics"
     };
 
     public IReadOnlyDictionary<string, object?> Sanitize(IReadOnlyDictionary<string, object?> parameters)

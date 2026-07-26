@@ -47,4 +47,25 @@ public class McpToolContractTests
             method.GetParameters(),
             parameter => parameter.Name is "userId" or "usuarioId" or "proprietarioId");
     }
+
+    [Fact]
+    public async Task Financial_tools_reject_legacy_owner_header_even_with_oauth_subject()
+    {
+        var context = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [
+                    new Claim("sub", "owner-a"),
+                    new Claim(McpClaimNames.ConnectionId, "connection-a")
+                ],
+                "McpBearer"))
+        };
+        context.Request.Headers["X-Proprietario-Id"] = "owner-b";
+        var tool = new McpFinancialTools(
+            null!,
+            new HttpContextAccessor { HttpContext = context });
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            tool.ListIncomesAsync("2026-01", "2026-01"));
+    }
 }

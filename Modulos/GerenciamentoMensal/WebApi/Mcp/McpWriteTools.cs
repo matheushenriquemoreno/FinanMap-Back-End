@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Application.Mcp.Models;
 using Application.Mcp.Services;
 using Domain.Enum;
+using Domain.Enums;
 using ModelContextProtocol.Server;
 
 namespace WebApi.Mcp;
@@ -154,6 +155,247 @@ public sealed class McpWriteTools(
         service.PrepareIncomeDeleteAsync(
             Context(),
             new McpIncomeDeletePreviewInput(requestId, id),
+            cancellationToken);
+
+    [McpServerTool(
+        Name = "finanmap_expense_create_preview",
+        Title = "Preparar criação de despesa",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(McpToolEnvelope<McpPreviewData>))]
+    [Description(
+        "Valida e persiste uma prévia para criar uma despesa única, parcelada ou recorrente, sem alterar dados financeiros.")]
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareExpenseCreateAsync(
+        [Description("Identificador idempotente único desta solicitação.")] string requestId,
+        [Description("Ano financeiro da primeira despesa.")] int year,
+        [Description("Mês financeiro inicial entre 1 e 12.")] int month,
+        [Description("Descrição proposta para a despesa.")] string description,
+        [Description("Valor positivo em BRL, como string com até duas casas decimais.")] string amount,
+        [Description("Identificador opaco de uma categoria própria de despesa.")] string categoryId,
+        [Description("Indica parcelamento do valor total.")] bool isInstallment = false,
+        [Description("Indica recorrência mensal com o mesmo valor.")] bool isRecurring = false,
+        [Description("Quantidade de meses, entre 2 e 24, quando parcelada ou recorrente.")] int? recurrenceCount = null,
+        [Description("Despesa agrupadora própria opcional.")] string? groupingExpenseId = null,
+        CancellationToken cancellationToken = default) =>
+        service.PrepareExpenseCreateAsync(
+            Context(),
+            new McpExpenseCreatePreviewInput(
+                requestId,
+                year,
+                month,
+                description,
+                amount,
+                categoryId,
+                isInstallment,
+                isRecurring,
+                recurrenceCount,
+                groupingExpenseId),
+            cancellationToken);
+
+    [McpServerTool(
+        Name = "finanmap_expense_update_preview",
+        Title = "Preparar alteração de despesa",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(McpToolEnvelope<McpPreviewData>))]
+    [Description(
+        "Valida e persiste uma prévia para alterar uma despesa, exigindo o alcance do lote quando houver recorrência ou parcelas.")]
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareExpenseUpdateAsync(
+        [Description("Identificador idempotente único desta solicitação.")] string requestId,
+        [Description("Identificador opaco da despesa própria.")] string id,
+        [Description("Nova descrição, quando houver alteração.")] string? description = null,
+        [Description("Novo valor positivo em BRL, quando houver alteração.")] string? amount = null,
+        [Description("Nova categoria própria de despesa, quando houver alteração.")] string? categoryId = null,
+        [Description("Nova despesa agrupadora; string vazia remove o vínculo.")] string? groupingExpenseId = null,
+        [Description("Alcance explícito no lote: apenas esta, esta e próximas ou todas.")] ModificadorLote? batchModifier = null,
+        CancellationToken cancellationToken = default) =>
+        service.PrepareExpenseUpdateAsync(
+            Context(),
+            new McpExpenseUpdatePreviewInput(
+                requestId,
+                id,
+                description,
+                amount,
+                categoryId,
+                groupingExpenseId,
+                batchModifier),
+            cancellationToken);
+
+    [McpServerTool(
+        Name = "finanmap_expense_delete_preview",
+        Title = "Preparar exclusão definitiva de despesa",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(McpToolEnvelope<McpPreviewData>))]
+    [Description(
+        "Valida e persiste uma prévia irreversível para excluir uma despesa, com alcance explícito para parcelas ou recorrências.")]
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareExpenseDeleteAsync(
+        [Description("Identificador idempotente único desta solicitação.")] string requestId,
+        [Description("Identificador opaco da despesa própria.")] string id,
+        [Description("Alcance explícito no lote: apenas esta, esta e próximas ou todas.")] ModificadorLote? batchModifier = null,
+        CancellationToken cancellationToken = default) =>
+        service.PrepareExpenseDeleteAsync(
+            Context(),
+            new McpExpenseDeletePreviewInput(requestId, id, batchModifier),
+            cancellationToken);
+
+    [McpServerTool(
+        Name = "finanmap_investment_create_preview",
+        Title = "Preparar criação de investimento",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(McpToolEnvelope<McpPreviewData>))]
+    [Description(
+        "Valida e persiste uma prévia para criar um investimento, sem alterar dados financeiros.")]
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareInvestmentCreateAsync(
+        [Description("Identificador idempotente único desta solicitação.")] string requestId,
+        [Description("Ano financeiro do investimento.")] int year,
+        [Description("Mês financeiro entre 1 e 12.")] int month,
+        [Description("Descrição proposta para o investimento.")] string description,
+        [Description("Valor positivo em BRL, como string com até duas casas decimais.")] string amount,
+        [Description("Identificador opaco de uma categoria própria de investimento.")] string categoryId,
+        CancellationToken cancellationToken = default) =>
+        service.PrepareInvestmentCreateAsync(
+            Context(),
+            new McpInvestmentCreatePreviewInput(
+                requestId,
+                year,
+                month,
+                description,
+                amount,
+                categoryId),
+            cancellationToken);
+
+    [McpServerTool(
+        Name = "finanmap_investment_update_preview",
+        Title = "Preparar alteração de investimento",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(McpToolEnvelope<McpPreviewData>))]
+    [Description(
+        "Valida e persiste uma prévia com os valores atuais e propostos para alterar um investimento.")]
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareInvestmentUpdateAsync(
+        [Description("Identificador idempotente único desta solicitação.")] string requestId,
+        [Description("Identificador opaco do investimento próprio.")] string id,
+        [Description("Nova descrição, quando houver alteração.")] string? description = null,
+        [Description("Novo valor positivo em BRL, quando houver alteração.")] string? amount = null,
+        [Description("Nova categoria própria de investimento, quando houver alteração.")] string? categoryId = null,
+        CancellationToken cancellationToken = default) =>
+        service.PrepareInvestmentUpdateAsync(
+            Context(),
+            new McpInvestmentUpdatePreviewInput(
+                requestId,
+                id,
+                description,
+                amount,
+                categoryId),
+            cancellationToken);
+
+    [McpServerTool(
+        Name = "finanmap_investment_delete_preview",
+        Title = "Preparar exclusão definitiva de investimento",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(McpToolEnvelope<McpPreviewData>))]
+    [Description(
+        "Valida e persiste uma prévia irreversível para excluir definitivamente um investimento.")]
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareInvestmentDeleteAsync(
+        [Description("Identificador idempotente único desta solicitação.")] string requestId,
+        [Description("Identificador opaco do investimento próprio.")] string id,
+        CancellationToken cancellationToken = default) =>
+        service.PrepareInvestmentDeleteAsync(
+            Context(),
+            new McpInvestmentDeletePreviewInput(requestId, id),
+            cancellationToken);
+
+    [McpServerTool(
+        Name = "finanmap_fixed_cost_create_preview",
+        Title = "Preparar criação de custo fixo",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(McpToolEnvelope<McpPreviewData>))]
+    [Description(
+        "Valida e persiste uma prévia para criar um custo fixo mensal, sem alterar dados financeiros.")]
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareFixedCostCreateAsync(
+        [Description("Identificador idempotente único desta solicitação.")] string requestId,
+        [Description("Nome proposto para o custo fixo.")] string name,
+        [Description("Dia de vencimento entre 1 e 31.")] int dueDay,
+        [Description("Categoria própria de despesa opcional.")] string? categoryId = null,
+        CancellationToken cancellationToken = default) =>
+        service.PrepareFixedCostCreateAsync(
+            Context(),
+            new McpFixedCostCreatePreviewInput(requestId, name, dueDay, categoryId),
+            cancellationToken);
+
+    [McpServerTool(
+        Name = "finanmap_fixed_cost_update_preview",
+        Title = "Preparar alteração de custo fixo",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(McpToolEnvelope<McpPreviewData>))]
+    [Description(
+        "Valida e persiste uma prévia com os valores atuais e propostos para alterar um custo fixo mensal.")]
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareFixedCostUpdateAsync(
+        [Description("Identificador idempotente único desta solicitação.")] string requestId,
+        [Description("Identificador opaco do custo fixo próprio.")] string id,
+        [Description("Novo nome, quando houver alteração.")] string? name = null,
+        [Description("Novo dia de vencimento, quando houver alteração.")] int? dueDay = null,
+        [Description("Nova categoria própria; string vazia remove a categoria.")] string? categoryId = null,
+        [Description("Novo estado ativo/inativo, quando houver alteração.")] bool? active = null,
+        CancellationToken cancellationToken = default) =>
+        service.PrepareFixedCostUpdateAsync(
+            Context(),
+            new McpFixedCostUpdatePreviewInput(
+                requestId,
+                id,
+                name,
+                dueDay,
+                categoryId,
+                active),
+            cancellationToken);
+
+    [McpServerTool(
+        Name = "finanmap_fixed_cost_delete_preview",
+        Title = "Preparar exclusão definitiva de custo fixo",
+        ReadOnly = false,
+        Destructive = false,
+        Idempotent = true,
+        OpenWorld = false,
+        UseStructuredContent = true,
+        OutputSchemaType = typeof(McpToolEnvelope<McpPreviewData>))]
+    [Description(
+        "Valida e persiste uma prévia irreversível para excluir definitivamente um custo fixo mensal.")]
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareFixedCostDeleteAsync(
+        [Description("Identificador idempotente único desta solicitação.")] string requestId,
+        [Description("Identificador opaco do custo fixo próprio.")] string id,
+        CancellationToken cancellationToken = default) =>
+        service.PrepareFixedCostDeleteAsync(
+            Context(),
+            new McpFixedCostDeletePreviewInput(requestId, id),
             cancellationToken);
 
     [McpServerTool(

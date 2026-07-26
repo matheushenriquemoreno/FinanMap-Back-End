@@ -6,6 +6,7 @@ using Application.Mcp.Configuration;
 using Application.Mcp.Interfaces;
 using Application.Mcp.Models;
 using Domain.Enum;
+using Domain.Enums;
 using Domain.Mcp.Entities;
 using Domain.Mcp.Enums;
 using Domain.Mcp.Repositories;
@@ -291,6 +292,380 @@ public sealed class McpWriteService
             cancellationToken);
     }
 
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareExpenseCreateAsync(
+        McpCallContext context,
+        McpExpenseCreatePreviewInput input,
+        CancellationToken cancellationToken = default)
+    {
+        const string toolName = "finanmap_expense_create_preview";
+        var invalid = ValidateTransactionCreate(
+            context,
+            toolName,
+            input.Year,
+            input.Month,
+            input.Description,
+            input.Amount,
+            input.CategoryId,
+            cancellationToken,
+            out var amount);
+        if (invalid is not null)
+            return invalid;
+        if (input.IsInstallment && input.IsRecurring)
+        {
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "recurrence",
+                "Escolha parcelamento ou recorrência; as duas opções não podem ser combinadas.",
+                cancellationToken);
+        }
+        if ((input.IsInstallment || input.IsRecurring) &&
+            input.RecurrenceCount is not (>= 2 and <= 24))
+        {
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "recurrenceCount",
+                "Informe entre 2 e 24 meses para o parcelamento ou recorrência.",
+                cancellationToken);
+        }
+        if (!input.IsInstallment &&
+            !input.IsRecurring &&
+            input.RecurrenceCount is > 1)
+        {
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "recurrence",
+                "Indique se a despesa é parcelada ou recorrente.",
+                cancellationToken);
+        }
+
+        return PrepareAsync(
+            context,
+            toolName,
+            input.RequestId,
+            new McpWriteCommand(
+                McpWriteEntity.Expense,
+                McpPreviewAction.Create,
+                null,
+                new Dictionary<string, object?>
+                {
+                    ["year"] = input.Year,
+                    ["month"] = input.Month,
+                    ["description"] = NormalizeText(input.Description),
+                    ["amount"] = amount.ToString("0.00", CultureInfo.InvariantCulture),
+                    ["categoryId"] = input.CategoryId.Trim(),
+                    ["isInstallment"] = input.IsInstallment,
+                    ["isRecurring"] = input.IsRecurring,
+                    ["recurrenceCount"] = input.IsInstallment || input.IsRecurring
+                        ? input.RecurrenceCount
+                        : 1,
+                    ["groupingExpenseId"] = NormalizeOptionalId(input.GroupingExpenseId)
+                }),
+            cancellationToken);
+    }
+
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareExpenseUpdateAsync(
+        McpCallContext context,
+        McpExpenseUpdatePreviewInput input,
+        CancellationToken cancellationToken = default)
+    {
+        const string toolName = "finanmap_expense_update_preview";
+        if (string.IsNullOrWhiteSpace(input.Id))
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "id",
+                "Informe a despesa a alterar.",
+                cancellationToken);
+        var values = BuildTransactionChanges(
+            context,
+            toolName,
+            input.Description,
+            input.Amount,
+            input.CategoryId,
+            cancellationToken,
+            out var invalid);
+        if (invalid is not null)
+            return invalid;
+        if (input.GroupingExpenseId is not null)
+            values["groupingExpenseId"] = NormalizeOptionalId(input.GroupingExpenseId);
+        if (input.BatchModifier.HasValue)
+            values["batchModifier"] = input.BatchModifier.Value.ToString();
+        if (values.Count == 0)
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "changes",
+                "Informe ao menos um campo a alterar.",
+                cancellationToken);
+        return PrepareAsync(
+            context,
+            toolName,
+            input.RequestId,
+            new McpWriteCommand(
+                McpWriteEntity.Expense,
+                McpPreviewAction.Update,
+                input.Id.Trim(),
+                values),
+            cancellationToken);
+    }
+
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareExpenseDeleteAsync(
+        McpCallContext context,
+        McpExpenseDeletePreviewInput input,
+        CancellationToken cancellationToken = default)
+    {
+        const string toolName = "finanmap_expense_delete_preview";
+        if (string.IsNullOrWhiteSpace(input.Id))
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "id",
+                "Informe a despesa a excluir.",
+                cancellationToken);
+        var values = new Dictionary<string, object?>();
+        if (input.BatchModifier.HasValue)
+            values["batchModifier"] = input.BatchModifier.Value.ToString();
+        return PrepareAsync(
+            context,
+            toolName,
+            input.RequestId,
+            new McpWriteCommand(
+                McpWriteEntity.Expense,
+                McpPreviewAction.Delete,
+                input.Id.Trim(),
+                values),
+            cancellationToken);
+    }
+
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareInvestmentCreateAsync(
+        McpCallContext context,
+        McpInvestmentCreatePreviewInput input,
+        CancellationToken cancellationToken = default)
+    {
+        const string toolName = "finanmap_investment_create_preview";
+        var invalid = ValidateTransactionCreate(
+            context,
+            toolName,
+            input.Year,
+            input.Month,
+            input.Description,
+            input.Amount,
+            input.CategoryId,
+            cancellationToken,
+            out var amount);
+        if (invalid is not null)
+            return invalid;
+        return PrepareAsync(
+            context,
+            toolName,
+            input.RequestId,
+            new McpWriteCommand(
+                McpWriteEntity.Investment,
+                McpPreviewAction.Create,
+                null,
+                new Dictionary<string, object?>
+                {
+                    ["year"] = input.Year,
+                    ["month"] = input.Month,
+                    ["description"] = NormalizeText(input.Description),
+                    ["amount"] = amount.ToString("0.00", CultureInfo.InvariantCulture),
+                    ["categoryId"] = input.CategoryId.Trim()
+                }),
+            cancellationToken);
+    }
+
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareInvestmentUpdateAsync(
+        McpCallContext context,
+        McpInvestmentUpdatePreviewInput input,
+        CancellationToken cancellationToken = default)
+    {
+        const string toolName = "finanmap_investment_update_preview";
+        if (string.IsNullOrWhiteSpace(input.Id))
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "id",
+                "Informe o investimento a alterar.",
+                cancellationToken);
+        var values = BuildTransactionChanges(
+            context,
+            toolName,
+            input.Description,
+            input.Amount,
+            input.CategoryId,
+            cancellationToken,
+            out var invalid);
+        if (invalid is not null)
+            return invalid;
+        if (values.Count == 0)
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "changes",
+                "Informe ao menos um campo a alterar.",
+                cancellationToken);
+        return PrepareAsync(
+            context,
+            toolName,
+            input.RequestId,
+            new McpWriteCommand(
+                McpWriteEntity.Investment,
+                McpPreviewAction.Update,
+                input.Id.Trim(),
+                values),
+            cancellationToken);
+    }
+
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareInvestmentDeleteAsync(
+        McpCallContext context,
+        McpInvestmentDeletePreviewInput input,
+        CancellationToken cancellationToken = default)
+    {
+        const string toolName = "finanmap_investment_delete_preview";
+        if (string.IsNullOrWhiteSpace(input.Id))
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "id",
+                "Informe o investimento a excluir.",
+                cancellationToken);
+        return PrepareAsync(
+            context,
+            toolName,
+            input.RequestId,
+            new McpWriteCommand(
+                McpWriteEntity.Investment,
+                McpPreviewAction.Delete,
+                input.Id.Trim(),
+                new Dictionary<string, object?>()),
+            cancellationToken);
+    }
+
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareFixedCostCreateAsync(
+        McpCallContext context,
+        McpFixedCostCreatePreviewInput input,
+        CancellationToken cancellationToken = default)
+    {
+        const string toolName = "finanmap_fixed_cost_create_preview";
+        if (string.IsNullOrWhiteSpace(input.Name))
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "name",
+                "Informe o nome do custo fixo.",
+                cancellationToken);
+        if (input.DueDay is < 1 or > 31)
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "dueDay",
+                "Informe um dia de vencimento entre 1 e 31.",
+                cancellationToken);
+        return PrepareAsync(
+            context,
+            toolName,
+            input.RequestId,
+            new McpWriteCommand(
+                McpWriteEntity.FixedCost,
+                McpPreviewAction.Create,
+                null,
+                new Dictionary<string, object?>
+                {
+                    ["name"] = NormalizeText(input.Name),
+                    ["dueDay"] = input.DueDay,
+                    ["categoryId"] = NormalizeOptionalId(input.CategoryId),
+                    ["active"] = true
+                }),
+            cancellationToken);
+    }
+
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareFixedCostUpdateAsync(
+        McpCallContext context,
+        McpFixedCostUpdatePreviewInput input,
+        CancellationToken cancellationToken = default)
+    {
+        const string toolName = "finanmap_fixed_cost_update_preview";
+        if (string.IsNullOrWhiteSpace(input.Id))
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "id",
+                "Informe o custo fixo a alterar.",
+                cancellationToken);
+        var values = new Dictionary<string, object?>();
+        if (input.Name is not null)
+        {
+            if (string.IsNullOrWhiteSpace(input.Name))
+                return ClarificationWithAuditAsync(
+                    context,
+                    toolName,
+                    "name",
+                    "Informe um nome válido para o custo fixo.",
+                    cancellationToken);
+            values["name"] = NormalizeText(input.Name);
+        }
+        if (input.DueDay.HasValue)
+        {
+            if (input.DueDay is < 1 or > 31)
+                return ClarificationWithAuditAsync(
+                    context,
+                    toolName,
+                    "dueDay",
+                    "Informe um dia de vencimento entre 1 e 31.",
+                    cancellationToken);
+            values["dueDay"] = input.DueDay.Value;
+        }
+        if (input.CategoryId is not null)
+            values["categoryId"] = NormalizeOptionalId(input.CategoryId);
+        if (input.Active.HasValue)
+            values["active"] = input.Active.Value;
+        if (values.Count == 0)
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "changes",
+                "Informe ao menos um campo a alterar.",
+                cancellationToken);
+        return PrepareAsync(
+            context,
+            toolName,
+            input.RequestId,
+            new McpWriteCommand(
+                McpWriteEntity.FixedCost,
+                McpPreviewAction.Update,
+                input.Id.Trim(),
+                values),
+            cancellationToken);
+    }
+
+    public Task<McpToolEnvelope<McpPreviewData>> PrepareFixedCostDeleteAsync(
+        McpCallContext context,
+        McpFixedCostDeletePreviewInput input,
+        CancellationToken cancellationToken = default)
+    {
+        const string toolName = "finanmap_fixed_cost_delete_preview";
+        if (string.IsNullOrWhiteSpace(input.Id))
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "id",
+                "Informe o custo fixo a excluir.",
+                cancellationToken);
+        return PrepareAsync(
+            context,
+            toolName,
+            input.RequestId,
+            new McpWriteCommand(
+                McpWriteEntity.FixedCost,
+                McpPreviewAction.Delete,
+                input.Id.Trim(),
+                new Dictionary<string, object?>()),
+            cancellationToken);
+    }
+
     public async Task<McpToolEnvelope<McpOperationData>> ConfirmAsync(
         McpCallContext context,
         McpOperationConfirmInput input,
@@ -382,6 +757,25 @@ public sealed class McpWriteService
                 cancellationToken);
         }
 
+        var existingConfirmation = await _operations.GetByPreviewAsync(
+            preview.Id,
+            context.UserId,
+            context.ConnectionId,
+            cancellationToken);
+        if (existingConfirmation is not null)
+            return FromPersisted(context, existingConfirmation);
+
+        var command = DeserializeCommand(preview);
+        var plannedSteps = command.Steps is { Count: > 0 }
+            ? command.Steps
+            :
+            [
+                new McpWriteStepPlan(
+                    "apply",
+                    command.TargetId,
+                    command.Values,
+                    command.ExpectedValues)
+            ];
         var journal = McpOperationJournal.Start(
             context.UserId,
             context.ConnectionId,
@@ -405,15 +799,14 @@ public sealed class McpWriteService
             targetRefs: preview.SnapshotHashes
                 .Select(item => new McpTargetRef(item.EntityType, item.EntityId))
                 .ToArray(),
-            steps:
-            [
-                new McpOperationStep(
-                    "apply",
+            steps: plannedSteps
+                .Select(step => new McpOperationStep(
+                    step.Name,
                     McpOperationStepState.Pending,
                     null,
                     null,
-                    null)
-            ],
+                    null))
+                .ToArray(),
             startedAtUtc: UtcNow());
         var creation = await _operations.CreateOrGetAsync(journal, cancellationToken);
         if (creation.RequestConflict)
@@ -426,8 +819,6 @@ public sealed class McpWriteService
         }
         if (!creation.Created)
             return FromPersisted(context, creation.Journal);
-
-        var command = DeserializeCommand(preview);
 
         var reserved = await _previews.TryReserveAsync(
             preview.Id,
@@ -467,32 +858,73 @@ public sealed class McpWriteService
         if (leased is null)
             return FromPersisted(context, journal);
 
-        var leasedVersion = leased.Version;
-        leased.StartStep("apply", leaseOwner, UtcNow());
-        McpDomainEffect effect;
-        try
+        for (var index = 0; index < plannedSteps.Count; index++)
         {
-            effect = await _domain.ExecuteAsync(
-                context.UserId,
+            var plan = plannedSteps[index];
+            var expectedBeforeStart = leased.Version;
+            leased.StartStep(plan.Name, leaseOwner, UtcNow());
+            if (!await _operations.ReplaceAsync(
+                    leased,
+                    expectedBeforeStart,
+                    cancellationToken))
+            {
+                return PersistencePending(context, journal.Id);
+            }
+
+            var stepCommand = CommandForStep(command, plan);
+            var stepMarker = plannedSteps.Count == 1
+                ? journal.Id
+                : $"{journal.Id}:{plan.Name}";
+            McpDomainEffect effect;
+            try
+            {
+                effect = await _domain.ExecuteAsync(
+                    context.UserId,
+                    stepCommand,
+                    stepMarker,
+                    preview.SnapshotHashes,
+                    cancellationToken);
+            }
+            catch
+            {
+                effect = McpDomainEffect.Unknown(
+                    "Não foi possível comprovar o resultado da escrita. Consulte o status antes de tentar novamente.");
+            }
+
+            var isLast = index == plannedSteps.Count - 1;
+            if (effect.State == McpDomainEffectState.Completed && !isLast)
+            {
+                var expectedBeforeComplete = leased.Version;
+                leased.EnsureTargetRef(
+                    EntityWire(command.Entity),
+                    effect.EntityId!);
+                leased.CompleteStep(
+                    plan.Name,
+                    effect.EffectMarker ?? stepMarker,
+                    effect.Result,
+                    UtcNow());
+                if (!await _operations.ReplaceAsync(
+                        leased,
+                        expectedBeforeComplete,
+                        cancellationToken))
+                {
+                    return PersistencePending(context, journal.Id);
+                }
+                continue;
+            }
+
+            return await PersistEffectAsync(
+                context,
+                reserved,
+                leased,
+                leased.Version,
                 command,
-                journal.Id,
-                preview.SnapshotHashes,
+                plan.Name,
+                effect,
                 cancellationToken);
         }
-        catch
-        {
-            effect = McpDomainEffect.Unknown(
-                "Não foi possível comprovar o resultado da escrita. Consulte o status antes de tentar novamente.");
-        }
 
-        return await PersistEffectAsync(
-            context,
-            reserved,
-            leased,
-            leasedVersion,
-            command,
-            effect,
-            cancellationToken);
+        throw new InvalidOperationException("Operação MCP sem passo executável.");
     }
 
     public async Task<McpToolEnvelope<McpOperationData>> CancelAsync(
@@ -716,7 +1148,7 @@ public sealed class McpWriteService
             McpOperationClass.Preview,
             _sanitizer.Sanitize(new Dictionary<string, object?>
             {
-                ["entityType"] = command.Entity.ToString().ToLowerInvariant(),
+                ["entityType"] = EntityWire(command.Entity),
                 ["action"] = command.Action.ToString().ToLowerInvariant(),
                 ["requestIdPresent"] = true,
                 ["targetPresent"] = command.TargetId is not null,
@@ -921,6 +1353,7 @@ public sealed class McpWriteService
         McpOperationJournal journal,
         int journalExpectedVersion,
         McpWriteCommand command,
+        string stepName,
         McpDomainEffect effect,
         CancellationToken cancellationToken)
     {
@@ -929,10 +1362,10 @@ public sealed class McpWriteService
         {
             case McpDomainEffectState.Completed:
                 journal.EnsureTargetRef(
-                    command.Entity.ToString().ToLowerInvariant(),
+                    EntityWire(command.Entity),
                     effect.EntityId!);
                 journal.CompleteStep(
-                    "apply",
+                    stepName,
                     effect.EffectMarker ?? journal.Id,
                     effect.Result,
                     UtcNow());
@@ -940,7 +1373,7 @@ public sealed class McpWriteService
                     new Dictionary<string, object?>
                     {
                         ["status"] = "success",
-                        ["entityType"] = command.Entity.ToString().ToLowerInvariant(),
+                        ["entityType"] = EntityWire(command.Entity),
                         ["entityId"] = effect.EntityId,
                         ["action"] = command.Action.ToString().ToLowerInvariant(),
                         ["summary"] = SafeOperationSummary(command),
@@ -970,11 +1403,11 @@ public sealed class McpWriteService
             case McpDomainEffectState.ConflictChanged:
             case McpDomainEffectState.Rejected:
                 var knownCode = effect.ErrorCode ?? "DOMAIN_REJECTED";
-                journal.FailStep("apply", knownCode, false, UtcNow());
+                journal.FailStep(stepName, knownCode, false, UtcNow());
                 journal.SetResultSummary(new Dictionary<string, object?>
                 {
                     ["action"] = command.Action.ToString().ToLowerInvariant(),
-                    ["entityType"] = command.Entity.ToString().ToLowerInvariant(),
+                    ["entityType"] = EntityWire(command.Entity),
                     ["entityId"] = command.TargetId,
                     ["summary"] = "A escrita confirmada foi rejeitada sem efeito pendente.",
                     ["preview"] = PreviewAuditSummary(preview),
@@ -1010,14 +1443,14 @@ public sealed class McpWriteService
 
             default:
                 journal.FailStep(
-                    "apply",
+                    stepName,
                     "EFFECT_OUTCOME_UNKNOWN",
                     true,
                     UtcNow());
                 journal.SetResultSummary(new Dictionary<string, object?>
                 {
                     ["action"] = command.Action.ToString().ToLowerInvariant(),
-                    ["entityType"] = command.Entity.ToString().ToLowerInvariant(),
+                    ["entityType"] = EntityWire(command.Entity),
                     ["entityId"] = command.TargetId,
                     ["summary"] = "O resultado da escrita ainda não pôde ser comprovado.",
                     ["preview"] = PreviewAuditSummary(preview),
@@ -1059,6 +1492,20 @@ public sealed class McpWriteService
         return JsonSerializer.Deserialize<McpWriteCommand>(plaintext)
                ?? throw new InvalidOperationException("Payload da prévia MCP inválido.");
     }
+
+    private static McpWriteCommand CommandForStep(
+        McpWriteCommand command,
+        McpWriteStepPlan step) =>
+        command with
+        {
+            TargetId = step.TargetId,
+            Values = new Dictionary<string, object?>(step.Values),
+            ExpectedValues = step.ExpectedValues is null
+                ? null
+                : new Dictionary<string, object?>(step.ExpectedValues),
+            Steps = null,
+            StepType = step.Type
+        };
 
     private static McpDomainPreparation PreparationFromProtectedCommand(
         McpWriteCommand command,
@@ -1148,7 +1595,7 @@ public sealed class McpWriteService
             :
             [
                 new McpPreviewTarget(
-                    preparation.Command.Entity.ToString().ToLowerInvariant(),
+                    EntityWire(preparation.Command.Entity),
                     "new")
             ];
         return new McpPreviewData(
@@ -1168,7 +1615,7 @@ public sealed class McpWriteService
         McpDomainPreparation preparation) =>
         new Dictionary<string, object?>
         {
-            ["resourceType"] = preparation.Command.Entity.ToString().ToLowerInvariant(),
+            ["resourceType"] = EntityWire(preparation.Command.Entity),
             ["recordReference"] = preparation.Command.TargetId ?? "new",
             ["action"] = preparation.Command.Action.ToString().ToLowerInvariant(),
             ["changes"] = BuildChanges(preparation)
@@ -1288,7 +1735,12 @@ public sealed class McpWriteService
                     "VALIDATION_REQUIRED",
                     message,
                     field,
-                    false)
+                    false,
+                    new Dictionary<string, object?>
+                    {
+                        ["guidance"] =
+                            $"Corrija o campo {field} e prepare uma nova prévia."
+                    })
             ]);
     }
 
@@ -1469,6 +1921,112 @@ public sealed class McpWriteService
                     false)
             ]);
 
+    private Task<McpToolEnvelope<McpPreviewData>>? ValidateTransactionCreate(
+        McpCallContext context,
+        string toolName,
+        int year,
+        int month,
+        string description,
+        string amountText,
+        string categoryId,
+        CancellationToken cancellationToken,
+        out decimal amount)
+    {
+        amount = 0;
+        if (month is < 1 or > 12)
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "month",
+                "Informe um mês entre 1 e 12.",
+                cancellationToken);
+        if (year < _time.GetUtcNow().Year - 5)
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "year",
+                "Informe um ano aceito pelo FinanMap.",
+                cancellationToken);
+        if (string.IsNullOrWhiteSpace(description))
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "description",
+                "Informe a descrição do registro financeiro.",
+                cancellationToken);
+        if (!TryMoney(amountText, out amount))
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "amount",
+                "Informe um valor positivo com no máximo duas casas decimais.",
+                cancellationToken);
+        if (string.IsNullOrWhiteSpace(categoryId))
+            return ClarificationWithAuditAsync(
+                context,
+                toolName,
+                "categoryId",
+                "Informe a categoria do registro financeiro.",
+                cancellationToken);
+        return null;
+    }
+
+    private Dictionary<string, object?> BuildTransactionChanges(
+        McpCallContext context,
+        string toolName,
+        string? description,
+        string? amountText,
+        string? categoryId,
+        CancellationToken cancellationToken,
+        out Task<McpToolEnvelope<McpPreviewData>>? invalid)
+    {
+        invalid = null;
+        var values = new Dictionary<string, object?>();
+        if (description is not null)
+        {
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                invalid = ClarificationWithAuditAsync(
+                    context,
+                    toolName,
+                    "description",
+                    "Informe uma descrição válida.",
+                    cancellationToken);
+                return values;
+            }
+            values["description"] = NormalizeText(description);
+        }
+        if (amountText is not null)
+        {
+            if (!TryMoney(amountText, out var amount))
+            {
+                invalid = ClarificationWithAuditAsync(
+                    context,
+                    toolName,
+                    "amount",
+                    "Informe um valor positivo com no máximo duas casas decimais.",
+                    cancellationToken);
+                return values;
+            }
+            values["amount"] = amount.ToString("0.00", CultureInfo.InvariantCulture);
+        }
+        if (categoryId is not null)
+        {
+            if (string.IsNullOrWhiteSpace(categoryId))
+            {
+                invalid = ClarificationWithAuditAsync(
+                    context,
+                    toolName,
+                    "categoryId",
+                    "Informe uma categoria válida.",
+                    cancellationToken);
+                return values;
+            }
+            values["categoryId"] = categoryId.Trim();
+        }
+        return values;
+    }
+
     private static bool TryMoney(string value, out decimal amount)
     {
         amount = 0;
@@ -1489,6 +2047,9 @@ public sealed class McpWriteService
 
     private static string NormalizeText(string value) =>
         value.Trim().Length <= 200 ? value.Trim() : value.Trim()[..200];
+
+    private static string? NormalizeOptionalId(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static bool TryDecision(
         string value,
@@ -1529,6 +2090,17 @@ public sealed class McpWriteService
             McpPreviewAction.Update => "Registro alterado conforme a prévia confirmada.",
             McpPreviewAction.Delete => "Registro excluído definitivamente conforme a prévia confirmada.",
             _ => "Operação concluída conforme a prévia confirmada."
+        };
+
+    private static string EntityWire(McpWriteEntity entity) =>
+        entity switch
+        {
+            McpWriteEntity.Category => "category",
+            McpWriteEntity.Income => "income",
+            McpWriteEntity.Expense => "expense",
+            McpWriteEntity.Investment => "investment",
+            McpWriteEntity.FixedCost => "fixed_cost",
+            _ => throw new ArgumentOutOfRangeException(nameof(entity))
         };
 
     private static IReadOnlyDictionary<string, object?> Origin(McpCallContext context) =>

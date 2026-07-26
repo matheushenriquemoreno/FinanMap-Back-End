@@ -165,49 +165,118 @@ public sealed class McpOperationReconciler(
                 cancellationToken);
         }
 
-        McpDomainEffect? effect;
-        try
+        var plans = command.Steps is { Count: > 0 }
+            ? command.Steps
+            :
+            [
+                new McpWriteStepPlan(
+                    "apply",
+                    command.TargetId,
+                    command.Values,
+                    command.ExpectedValues)
+            ];
+        foreach (var plan in plans)
         {
-            effect = await domain.FindEffectAsync(
-                journal.UserId,
-                command,
-                journal.Id,
-                cancellationToken);
-        }
-        catch
-        {
-            effect = McpDomainEffect.Unknown(
-                "A consulta do marcador de efeito falhou durante a reconciliação.");
-        }
+            var persistedStep = journal.Steps.SingleOrDefault(item =>
+                string.Equals(item.Name, plan.Name, StringComparison.Ordinal));
+            if (persistedStep is null)
+            {
+                return await MarkUnknownAsync(
+                    journal,
+                    journal.Version,
+                    preview,
+                    "JOURNAL_STEP_MISSING",
+                    "O plano protegido não corresponde aos passos persistidos.",
+                    now,
+                    cancellationToken);
+            }
+            if (persistedStep.State == McpOperationStepState.Completed)
+                continue;
 
-        if (effect is null &&
-            now - journal.StartedAtUtc <= MaximumOperationalWindow)
-        {
-            journal.StartStep("apply", leaseOwner, now);
+            var stepCommand = CommandForStep(command, plan);
+            var operationId = plans.Count == 1
+                ? journal.Id
+                : $"{journal.Id}:{plan.Name}";
+            McpDomainEffect? effect;
             try
             {
-                effect = await domain.ExecuteAsync(
+                effect = await domain.FindEffectAsync(
                     journal.UserId,
-                    command,
-                    journal.Id,
-                    preview.SnapshotHashes,
+                    stepCommand,
+                    operationId,
                     cancellationToken);
             }
             catch
             {
                 effect = McpDomainEffect.Unknown(
-                    "O resultado permaneceu inconclusivo durante a reconciliação.");
+                    "A consulta do marcador de efeito falhou durante a reconciliação.");
             }
+
+            if (effect is null &&
+                now - journal.StartedAtUtc <= MaximumOperationalWindow)
+            {
+                var expectedBeforeStart = journal.Version;
+                journal.StartStep(plan.Name, leaseOwner, now);
+                if (!await operations.ReplaceAsync(
+                        journal,
+                        expectedBeforeStart,
+                        cancellationToken))
+                    return McpReconciliationOutcome.Skipped;
+                try
+                {
+                    effect = await domain.ExecuteAsync(
+                        journal.UserId,
+                        stepCommand,
+                        operationId,
+                        preview.SnapshotHashes,
+                        cancellationToken);
+                }
+                catch
+                {
+                    effect = McpDomainEffect.Unknown(
+                        "O resultado permaneceu inconclusivo durante a reconciliação.");
+                }
+            }
+
+            effect ??= McpDomainEffect.Unknown(
+                "A janela operacional terminou sem prova suficiente do efeito.");
+            var isLast = ReferenceEquals(plan, plans[^1]);
+            if (effect.State == McpDomainEffectState.Completed && !isLast)
+            {
+                var expectedBeforeComplete = journal.Version;
+                journal.EnsureTargetRef(
+                    EntityWire(command.Entity),
+                    effect.EntityId!);
+                journal.CompleteStep(
+                    plan.Name,
+                    effect.EffectMarker ?? operationId,
+                    effect.Result,
+                    now);
+                if (!await operations.ReplaceAsync(
+                        journal,
+                        expectedBeforeComplete,
+                        cancellationToken))
+                    return McpReconciliationOutcome.Skipped;
+                continue;
+            }
+
+            return await PersistOutcomeAsync(
+                journal,
+                journal.Version,
+                preview,
+                stepCommand,
+                plan.Name,
+                effect,
+                now,
+                cancellationToken);
         }
 
-        effect ??= McpDomainEffect.Unknown(
-            "A janela operacional terminou sem prova suficiente do efeito.");
-        return await PersistOutcomeAsync(
+        return await MarkUnknownAsync(
             journal,
-            journalExpectedVersion,
+            journal.Version,
             preview,
-            command,
-            effect,
+            "JOURNAL_ALREADY_APPLIED",
+            "Todos os passos estavam concluídos, mas o journal não havia sido finalizado.",
             now,
             cancellationToken);
     }
@@ -217,6 +286,7 @@ public sealed class McpOperationReconciler(
         int journalExpectedVersion,
         McpPreview preview,
         McpWriteCommand command,
+        string stepName,
         McpDomainEffect effect,
         DateTime now,
         CancellationToken cancellationToken)
@@ -225,7 +295,7 @@ public sealed class McpOperationReconciler(
         if (effect.State == McpDomainEffectState.Completed)
         {
             journal.CompleteStep(
-                "apply",
+                stepName,
                 effect.EffectMarker ?? journal.Id,
                 effect.Result,
                 now);
@@ -233,7 +303,7 @@ public sealed class McpOperationReconciler(
                 new Dictionary<string, object?>
                 {
                     ["status"] = "success",
-                    ["entityType"] = command.Entity.ToString().ToLowerInvariant(),
+                    ["entityType"] = EntityWire(command.Entity),
                     ["entityId"] = effect.EntityId,
                     ["action"] = command.Action.ToString().ToLowerInvariant(),
                     ["summary"] = "O efeito da operação foi comprovado pela reconciliação.",
@@ -271,7 +341,8 @@ public sealed class McpOperationReconciler(
                 preview,
                 effect.ErrorCode ?? "DOMAIN_REJECTED",
                 now,
-                cancellationToken);
+                cancellationToken,
+                stepName);
         }
 
         return await MarkUnknownAsync(
@@ -281,7 +352,8 @@ public sealed class McpOperationReconciler(
             effect.ErrorCode ?? "EFFECT_OUTCOME_UNKNOWN",
             effect.Message ?? "O efeito permaneceu inconclusivo.",
             now,
-            cancellationToken);
+            cancellationToken,
+            stepName);
     }
 
     private async Task<McpReconciliationOutcome> RejectAsync(
@@ -290,10 +362,13 @@ public sealed class McpOperationReconciler(
         McpPreview preview,
         string errorCode,
         DateTime now,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? stepName = null)
     {
         var previewExpectedVersion = preview.Version;
-        journal.FailStep("apply", errorCode, false, now);
+        var failingStep = stepName ?? PendingStepName(journal);
+        if (failingStep is not null)
+            journal.FailStep(failingStep, errorCode, false, now);
         journal.SetResultSummary(new Dictionary<string, object?>
         {
             ["action"] = PreviewText(preview, "action"),
@@ -336,11 +411,13 @@ public sealed class McpOperationReconciler(
         string errorCode,
         string message,
         DateTime now,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? stepName = null)
     {
         var previewExpectedVersion = preview?.Version;
-        if (journal.Steps.Any(item => item.Name == "apply"))
-            journal.FailStep("apply", errorCode, true, now);
+        var failingStep = stepName ?? PendingStepName(journal);
+        if (failingStep is not null)
+            journal.FailStep(failingStep, errorCode, true, now);
         journal.SetResultSummary(new Dictionary<string, object?>
         {
             ["action"] = preview is null ? null : PreviewText(preview, "action"),
@@ -413,6 +490,33 @@ public sealed class McpOperationReconciler(
                 _ => throw new ArgumentOutOfRangeException(nameof(preview))
             },
             ["confirmedAtUtc"] = preview.ConsumedAtUtc
+        };
+
+    private static McpWriteCommand CommandForStep(
+        McpWriteCommand command,
+        McpWriteStepPlan step) =>
+        command with
+        {
+            TargetId = step.TargetId,
+            Values = step.Values,
+            ExpectedValues = step.ExpectedValues,
+            Steps = null,
+            StepType = step.Type
+        };
+
+    private static string? PendingStepName(McpOperationJournal journal) =>
+        journal.Steps.FirstOrDefault(item =>
+            item.State != McpOperationStepState.Completed)?.Name;
+
+    private static string EntityWire(McpWriteEntity entity) =>
+        entity switch
+        {
+            McpWriteEntity.Category => "category",
+            McpWriteEntity.Income => "income",
+            McpWriteEntity.Expense => "expense",
+            McpWriteEntity.Investment => "investment",
+            McpWriteEntity.FixedCost => "fixed_cost",
+            _ => throw new ArgumentOutOfRangeException(nameof(entity))
         };
 
     private DateTime UtcNow() => time.GetUtcNow().UtcDateTime;

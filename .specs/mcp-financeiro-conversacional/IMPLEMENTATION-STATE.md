@@ -44,15 +44,18 @@
 - [x] MCPF-P3-10: Revisar diffs e criar commits
 
 ## Phase 4 -- Escritas completas de despesas, investimentos e custos fixos
-- [ ] MCPF-P4-01: Implementar escritas confirmadas de despesas
-- [ ] MCPF-P4-02: Implementar escritas confirmadas de investimentos
-- [ ] MCPF-P4-03: Implementar escritas confirmadas de custos fixos
-- [ ] MCPF-P4-04: Padronizar validações
-- [ ] MCPF-P4-05: Estruturar erros de domínio
-- [ ] MCPF-P4-06: Modelar agrupamentos e recorrências idempotentes
-- [ ] MCPF-P4-07: Adicionar prompts-base de escrita
-- [ ] MCPF-P4-08: Executar matriz completa de CRUD
-- [ ] MCPF-P4-09: Revisar diffs e criar commits
+
+**Status: completed**
+
+- [x] MCPF-P4-01: Implementar escritas confirmadas de despesas
+- [x] MCPF-P4-02: Implementar escritas confirmadas de investimentos
+- [x] MCPF-P4-03: Implementar escritas confirmadas de custos fixos
+- [x] MCPF-P4-04: Padronizar validações
+- [x] MCPF-P4-05: Estruturar erros de domínio
+- [x] MCPF-P4-06: Modelar agrupamentos e recorrências idempotentes
+- [x] MCPF-P4-07: Adicionar prompts-base de escrita
+- [x] MCPF-P4-08: Executar matriz completa de CRUD
+- [x] MCPF-P4-09: Revisar diffs e criar commits
 
 ## Phase 5 -- Importação estruturada com sucesso parcial e correção
 - [ ] MCPF-P5-01: Criar modelos e persistência de lote e item

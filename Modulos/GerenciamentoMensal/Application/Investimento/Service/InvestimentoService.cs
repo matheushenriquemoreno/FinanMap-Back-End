@@ -2,6 +2,7 @@
 using Application.Interface;
 using Application.MetaFinanceira.DTOs;
 using Application.MetaFinanceira.Interface;
+using Application.Mcp.Models;
 using Application.Shared.Transacao.DTOs;
 using Domain.Compartilhamento.Entity;
 using Domain.Entity;
@@ -10,6 +11,9 @@ using Domain.Login.Interfaces;
 using Domain.Relatorios.AcumuladoMensal;
 using Domain.Relatorios.Entity;
 using Domain.Repository;
+using System.Globalization;
+
+#nullable enable annotations
 
 namespace Application.Service;
 
@@ -47,6 +51,8 @@ public class InvestimentoService : IInvestimentoService
             return Result.Failure<ResultInvestimentoDTO>(Error.NotFound("Categoria informada não existe!"));
 
         Investimento investimento = new(createDTO.Ano, createDTO.Mes, createDTO.Descricao, createDTO.Valor, categoria, _usuarioLogado.UsuarioContextoDados);
+        if (!string.IsNullOrWhiteSpace(createDTO.McpOperationId))
+            investimento.MarcarCriacaoMcp(createDTO.McpOperationId);
 
         await _investimentoRepository.Add(investimento);
 
@@ -160,6 +166,97 @@ public class InvestimentoService : IInvestimentoService
         return Result.Success(ObterResultInvestimentoDTO(investimento, reportAcumulado));
     }
 
+    public async Task<McpApplicationMutationResult> AplicarMutacaoMcpAsync(
+        McpWriteCommand command,
+        string operationId,
+        string resultHash,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.Entity != McpWriteEntity.Investment ||
+            command.TargetId is null ||
+            command.ExpectedValues is null ||
+            !TryMcpSnapshot(command.ExpectedValues, out var expected))
+            return McpRejected("PREVIEW_PAYLOAD_INVALID", "A prévia de investimento não contém o snapshot obrigatório.");
+
+        if (command.Action == Domain.Mcp.Enums.McpPreviewAction.Update)
+        {
+            var values = new Dictionary<string, object?>(command.ExpectedValues);
+            foreach (var change in command.Values)
+                values[change.Key] = change.Value;
+            if (!TryMcpSnapshot(values, out var proposed))
+                return McpRejected("PREVIEW_PAYLOAD_INVALID", "Os valores propostos para o investimento são inválidos.");
+            var category = await _categoriaRepository.GetById(proposed.CategoryId);
+            if (category is null ||
+                category.UsuarioId != _usuarioLogado.IdContextoDados ||
+                category.Tipo != TipoCategoria.Investimento)
+                return McpRejected("CATEGORY_RELATIONSHIP_INVALID", "A categoria proposta não existe nesta conta ou não aceita investimentos.");
+            var updated = await _investimentoRepository.TryUpdateMcpAsync(
+                command.TargetId,
+                _usuarioLogado.IdContextoDados,
+                expected,
+                proposed,
+                operationId,
+                resultHash,
+                cancellationToken);
+            if (updated is not null)
+                return McpCompleted(updated.Id, operationId, resultHash);
+            var current = await _investimentoRepository.GetById(command.TargetId);
+            return current is null || !PertenceAoContexto(current)
+                ? McpRejected("RECORD_NOT_FOUND", "O investimento não foi encontrado para esta conta.")
+                : McpConflict();
+        }
+
+        if (command.Action != Domain.Mcp.Enums.McpPreviewAction.Delete)
+            return McpRejected("PREVIEW_PAYLOAD_INVALID", "A ação MCP de investimento é inválida.");
+        var deleted = await _investimentoRepository.TryDeleteMcpAsync(
+            command.TargetId,
+            _usuarioLogado.IdContextoDados,
+            expected,
+            cancellationToken);
+        if (deleted)
+            return McpCompleted(command.TargetId, operationId, resultHash);
+        var observed = await _investimentoRepository.GetById(command.TargetId);
+        return observed is null
+            ? new McpApplicationMutationResult(
+                McpApplicationMutationState.Unknown,
+                command.TargetId,
+                null,
+                null,
+                "EFFECT_OUTCOME_UNKNOWN",
+                "O investimento está ausente, mas a causalidade da exclusão não pôde ser comprovada.")
+            : McpConflict();
+    }
+
+    private static bool TryMcpSnapshot(
+        IReadOnlyDictionary<string, object?> values,
+        out McpInvestmentSnapshot snapshot)
+    {
+        snapshot = default!;
+        if (!int.TryParse(values.GetValueOrDefault("year")?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var year) ||
+            !int.TryParse(values.GetValueOrDefault("month")?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var month) ||
+            !decimal.TryParse(values.GetValueOrDefault("amount")?.ToString(), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var amount))
+            return false;
+        var description = values.GetValueOrDefault("description")?.ToString() ?? string.Empty;
+        var categoryId = values.GetValueOrDefault("categoryId")?.ToString() ?? string.Empty;
+        if (year < DateTime.UtcNow.Year - 5 ||
+            month is < 1 or > 12 ||
+            amount <= 0 ||
+            string.IsNullOrWhiteSpace(description) ||
+            string.IsNullOrWhiteSpace(categoryId))
+            return false;
+        snapshot = new McpInvestmentSnapshot(year, month, description, amount, categoryId);
+        return true;
+    }
+
+    private static McpApplicationMutationResult McpCompleted(string id, string operationId, string resultHash) =>
+        new(McpApplicationMutationState.Completed, id, operationId, resultHash, null, null);
+
+    private static McpApplicationMutationResult McpConflict() =>
+        new(McpApplicationMutationState.ConflictChanged, null, null, null, "CONFLICT_CHANGED", "O investimento mudou desde a prévia; prepare uma nova.");
+
+    private static McpApplicationMutationResult McpRejected(string code, string message) =>
+        new(McpApplicationMutationState.Rejected, null, null, null, code, message);
+
     private ResultInvestimentoDTO ObterResultInvestimentoDTO(Investimento investimento, AcumuladoMensalReport? reportAcumulado = null)
     {
         var result = new ResultInvestimentoDTO()
@@ -199,3 +296,5 @@ public class InvestimentoService : IInvestimentoService
         return investimento.UsuarioId == _usuarioLogado.IdContextoDados;
     }
 }
+
+#nullable restore annotations

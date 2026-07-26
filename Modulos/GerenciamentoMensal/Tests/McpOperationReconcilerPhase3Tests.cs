@@ -163,6 +163,104 @@ public sealed class McpOperationReconcilerPhase3Tests
         Assert.NotNull(journal.ReconciledAtUtc);
     }
 
+    [Fact]
+    public async Task Reconciler_resumes_only_pending_step_and_never_repeats_completed_step()
+    {
+        var now = new DateTime(2026, 7, 27, 12, 6, 0, DateTimeKind.Utc);
+        var protector = Protector();
+        var firstValues = new Dictionary<string, object?>
+        {
+            ["year"] = 2026,
+            ["month"] = 7,
+            ["description"] = "Parcela 1",
+            ["amount"] = "50.00",
+            ["categoryId"] = "category-a"
+        };
+        var secondValues = new Dictionary<string, object?>(firstValues)
+        {
+            ["month"] = 8,
+            ["description"] = "Parcela 2"
+        };
+        var command = new McpWriteCommand(
+            McpWriteEntity.Expense,
+            McpPreviewAction.Create,
+            null,
+            firstValues,
+            Steps:
+            [
+                new McpWriteStepPlan("expense-001", null, firstValues, null),
+                new McpWriteStepPlan("expense-002", null, secondValues, null)
+            ]);
+        var preview = Preview(protector, command, now.AddMinutes(-4));
+        var journal = McpOperationJournal.Start(
+            preview.UserId,
+            preview.ConnectionId,
+            "correlation-multi",
+            "finanmap_operation_confirm",
+            McpOperationClass.Confirm,
+            idempotencyKey: preview.Id,
+            requestHash: "confirmation-hash",
+            previewId: preview.Id,
+            steps:
+            [
+                new McpOperationStep("expense-001", McpOperationStepState.Pending, null, null, null),
+                new McpOperationStep("expense-002", McpOperationStepState.Pending, null, null, null)
+            ],
+            startedAtUtc: now.AddMinutes(-4));
+        Assert.True(preview.TryReserve(
+            preview.UserId,
+            preview.ConnectionId,
+            preview.PayloadHash,
+            preview.RequiredDecision,
+            journal.Id,
+            now.AddMinutes(-3)));
+        Assert.True(journal.TryAcquireLease(
+            "crashed-worker",
+            now.AddMinutes(-3),
+            TimeSpan.FromMinutes(1)));
+        journal.StartStep("expense-001", "crashed-worker", now.AddMinutes(-3));
+        journal.CompleteStep(
+            "expense-001",
+            $"{journal.Id}:expense-001",
+            new Dictionary<string, object?>
+            {
+                ["entityType"] = "expense",
+                ["entityId"] = "expense-first",
+                ["action"] = "create"
+            },
+            now.AddMinutes(-3));
+        journal.StartStep("expense-002", "crashed-worker", now.AddMinutes(-3));
+        journal.ScheduleReconciliation(now.AddMinutes(-1));
+        var repository = new RepositoryFake(preview, journal);
+        var gateway = new GatewayFake
+        {
+            ExecutedEffect = McpDomainEffect.Completed(
+                "expense-second",
+                $"{journal.Id}:expense-002",
+                new Dictionary<string, object?>
+                {
+                    ["entityType"] = "expense",
+                    ["entityId"] = "expense-second",
+                    ["action"] = "create"
+                })
+        };
+        var reconciler = new McpOperationReconciler(
+            gateway,
+            repository,
+            repository,
+            protector,
+            new FixedTimeProvider(now));
+
+        var result = await reconciler.ReconcileDueAsync(10);
+
+        Assert.Equal(1, result.Completed);
+        Assert.Equal(1, gateway.ExecuteCount);
+        Assert.Equal($"{journal.Id}:expense-002", gateway.LastOperationId);
+        Assert.Equal("Parcela 2", gateway.LastCommand!.Values["description"]?.ToString());
+        Assert.All(journal.Steps, step => Assert.Equal(McpOperationStepState.Completed, step.State));
+        Assert.Equal(McpOperationState.Completed, journal.State);
+    }
+
     private static McpPreviewPayloadProtector Protector() =>
         new(Enumerable.Range(1, 32).Select(value => (byte)value).ToArray());
 
@@ -234,6 +332,7 @@ public sealed class McpOperationReconcilerPhase3Tests
             McpDomainEffect.Unknown("Não configurado.");
         public int ExecuteCount { get; private set; }
         public string? LastOperationId { get; private set; }
+        public McpWriteCommand? LastCommand { get; private set; }
 
         public Task<McpDomainPreparation> PrepareAsync(
             string userId,
@@ -250,6 +349,7 @@ public sealed class McpOperationReconcilerPhase3Tests
         {
             ExecuteCount++;
             LastOperationId = operationId;
+            LastCommand = command;
             return Task.FromResult(ExecutedEffect);
         }
 

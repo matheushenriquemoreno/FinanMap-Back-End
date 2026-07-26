@@ -1,10 +1,13 @@
 using Application.CustoFixo.DTOs;
 using Application.CustoFixo.Interfaces;
+using Application.Mcp.Models;
 using Domain.Compartilhamento.Entity;
 using Domain.Entity;
 using Domain.Enum;
 using Domain.Login.Interfaces;
 using Domain.Repository;
+
+#nullable enable annotations
 
 namespace Application.CustoFixo.Service;
 
@@ -41,6 +44,8 @@ public class CustoFixoService : ICustoFixoService
             createDTO.DiaVencimento,
             _usuarioLogado.IdContextoDados,
             createDTO.CategoriaId);
+        if (!string.IsNullOrWhiteSpace(createDTO.McpOperationId))
+            custoFixo.MarcarCriacaoMcp(createDTO.McpOperationId);
 
         await _custoFixoRepository.Add(custoFixo);
 
@@ -106,6 +111,100 @@ public class CustoFixoService : ICustoFixoService
 
         return Result.Success(CustoFixoResponseDTO.Mapear(custoFixo, categoriaNome));
     }
+
+    public async Task<McpApplicationMutationResult> AplicarMutacaoMcpAsync(
+        McpWriteCommand command,
+        string operationId,
+        string resultHash,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.Entity != McpWriteEntity.FixedCost ||
+            command.TargetId is null ||
+            command.ExpectedValues is null ||
+            !TryMcpSnapshot(command.ExpectedValues, out var expected))
+            return McpRejected("PREVIEW_PAYLOAD_INVALID", "A prévia de custo fixo não contém o snapshot obrigatório.");
+
+        if (command.Action == Domain.Mcp.Enums.McpPreviewAction.Update)
+        {
+            var values = new Dictionary<string, object?>(command.ExpectedValues);
+            foreach (var change in command.Values)
+                values[change.Key] = change.Value;
+            if (!TryMcpSnapshot(values, out var proposed))
+                return McpRejected("PREVIEW_PAYLOAD_INVALID", "Os valores propostos para o custo fixo são inválidos.");
+            var category = await ValidarCategoria(proposed.CategoryId);
+            if (category.IsFailure)
+                return McpRejected("CATEGORY_RELATIONSHIP_INVALID", "A categoria proposta não existe nesta conta ou não aceita custos fixos.");
+            if (proposed.Active &&
+                await _custoFixoRepository.ExisteAtivoDuplicado(
+                    _usuarioLogado.IdContextoDados,
+                    proposed.Name,
+                    proposed.DueDay,
+                    command.TargetId))
+                return McpRejected("DOMAIN_DUPLICATE", "Já existe um custo fixo ativo com esse nome e dia de vencimento.");
+            var updated = await _custoFixoRepository.TryUpdateMcpAsync(
+                command.TargetId,
+                _usuarioLogado.IdContextoDados,
+                expected,
+                proposed,
+                operationId,
+                resultHash,
+                cancellationToken);
+            if (updated is not null)
+                return McpCompleted(updated.Id, operationId, resultHash);
+            var current = await _custoFixoRepository.GetById(command.TargetId);
+            return current is null || current.UsuarioId != _usuarioLogado.IdContextoDados
+                ? McpRejected("RECORD_NOT_FOUND", "O custo fixo não foi encontrado para esta conta.")
+                : McpConflict();
+        }
+
+        if (command.Action != Domain.Mcp.Enums.McpPreviewAction.Delete)
+            return McpRejected("PREVIEW_PAYLOAD_INVALID", "A ação MCP de custo fixo é inválida.");
+        var deleted = await _custoFixoRepository.TryDeleteMcpAsync(
+            command.TargetId,
+            _usuarioLogado.IdContextoDados,
+            expected,
+            cancellationToken);
+        if (deleted)
+            return McpCompleted(command.TargetId, operationId, resultHash);
+        var observed = await _custoFixoRepository.GetById(command.TargetId);
+        return observed is null
+            ? new McpApplicationMutationResult(
+                McpApplicationMutationState.Unknown,
+                command.TargetId,
+                null,
+                null,
+                "EFFECT_OUTCOME_UNKNOWN",
+                "O custo fixo está ausente, mas a causalidade da exclusão não pôde ser comprovada.")
+            : McpConflict();
+    }
+
+    private static bool TryMcpSnapshot(
+        IReadOnlyDictionary<string, object?> values,
+        out McpFixedCostSnapshot snapshot)
+    {
+        snapshot = default!;
+        var name = values.GetValueOrDefault("name")?.ToString() ?? string.Empty;
+        if (!int.TryParse(values.GetValueOrDefault("dueDay")?.ToString(), out var dueDay) ||
+            !bool.TryParse(values.GetValueOrDefault("active")?.ToString(), out var active) ||
+            string.IsNullOrWhiteSpace(name) ||
+            dueDay is < 1 or > 31)
+            return false;
+        snapshot = new McpFixedCostSnapshot(
+            name,
+            dueDay,
+            values.GetValueOrDefault("categoryId")?.ToString(),
+            active);
+        return true;
+    }
+
+    private static McpApplicationMutationResult McpCompleted(string id, string operationId, string resultHash) =>
+        new(McpApplicationMutationState.Completed, id, operationId, resultHash, null, null);
+
+    private static McpApplicationMutationResult McpConflict() =>
+        new(McpApplicationMutationState.ConflictChanged, null, null, null, "CONFLICT_CHANGED", "O custo fixo mudou desde a prévia; prepare uma nova.");
+
+    private static McpApplicationMutationResult McpRejected(string code, string message) =>
+        new(McpApplicationMutationState.Rejected, null, null, null, code, message);
 
     private bool PodeEditar()
     {
@@ -174,3 +273,5 @@ public class CustoFixoService : ICustoFixoService
         return categoriasPorId.GetValueOrDefault(categoriaId);
     }
 }
+
+#nullable restore annotations

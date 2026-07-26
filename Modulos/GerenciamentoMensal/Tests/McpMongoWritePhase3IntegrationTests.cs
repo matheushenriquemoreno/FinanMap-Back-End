@@ -1,7 +1,10 @@
 using Domain.Mcp.Entities;
 using Domain.Mcp.Enums;
+using System.Text.Json;
 using Application.Implementacoes;
 using Application.Service;
+using Application.Services;
+using Application.CustoFixo.Service;
 using Application.Mcp.Interfaces;
 using Application.Mcp.Models;
 using Application.Mcp.Services;
@@ -22,6 +25,276 @@ namespace Tests;
 [Collection(McpMongoCollection.Name)]
 public sealed class McpMongoWritePhase3IntegrationTests(McpMongoFixture mongo)
 {
+    [Fact]
+    public async Task Nine_expense_investment_and_fixed_cost_flows_use_real_services_and_mongo_end_to_end()
+    {
+        var client = new MongoClient(mongo.ConnectionString);
+        RegisterFinancialMappings(client);
+        var database = client.GetDatabase("FinanMap");
+        var suffix = Guid.NewGuid().ToString("N");
+        var ownerId = ObjectId.GenerateNewId().ToString();
+        var user = new Usuario("Integração MCP F4", $"mcp-f4-{suffix}@example.com")
+        {
+            Id = ownerId
+        };
+        var loggedUser = new LoggedUser(user);
+        var categories = new CategoriaRepository(client);
+        var expenses = new DespesaRepository(client, categories);
+        var investments = new InvestimentoRepository(client, categories);
+        var fixedCosts = new CustoFixoRepository(client);
+        var report = new AcumuladoMensalRepository(client);
+        var categoryService = new CategoriaService(categories, loggedUser);
+        var incomeService = new RendimentoService(
+            new RendimentoRepository(client, categories),
+            categories,
+            report,
+            loggedUser);
+        var expenseService = new DespesaService(
+            expenses,
+            categories,
+            report,
+            loggedUser);
+        var investmentService = new InvestimentoService(
+            report,
+            investments,
+            categories,
+            loggedUser,
+            null!);
+        var fixedCostService = new CustoFixoService(
+            fixedCosts,
+            categories,
+            loggedUser);
+        var previews = new McpPreviewRepository(client);
+        var journals = new McpOperationJournalRepository(client);
+        var writeService = new McpWriteService(
+            new McpWriteDomainGateway(
+                categoryService,
+                incomeService,
+                expenseService,
+                investmentService,
+                fixedCostService,
+                new McpWriteEffectStore(client)),
+            new ConnectionValidator(),
+            previews,
+            journals,
+            journals,
+            new McpPreviewPayloadProtector(
+                Enumerable.Range(1, 32).Select(value => (byte)value).ToArray()),
+            TimeProvider.System,
+            new McpAuditSanitizer());
+        var context = new McpCallContext(
+            ownerId,
+            $"connection-f4-{suffix}",
+            $"correlation-f4-{suffix}",
+            ClientId: "integration-client");
+        var expenseCategory = await categories.Add(new Categoria(
+            $"Despesas-{suffix}",
+            Domain.Enum.TipoCategoria.Despesa,
+            ownerId)
+        {
+            Id = ObjectId.GenerateNewId().ToString()
+        });
+        var investmentCategory = await categories.Add(new Categoria(
+            $"Investimentos-{suffix}",
+            Domain.Enum.TipoCategoria.Investimento,
+            ownerId)
+        {
+            Id = ObjectId.GenerateNewId().ToString()
+        });
+
+        try
+        {
+            var expensePreview = await writeService.PrepareExpenseCreateAsync(
+                context,
+                new McpExpenseCreatePreviewInput(
+                    $"expense-create-{suffix}",
+                    DateTime.UtcNow.Year,
+                    7,
+                    $"Mercado-{suffix}",
+                    "250.40",
+                    expenseCategory.Id,
+                    false,
+                    false,
+                    null,
+                    null));
+            Assert.Equal(0, await database.GetCollection<Despesa>("Despesa")
+                .CountDocumentsAsync(item => item.UsuarioId == ownerId));
+            var storedExpensePreview = await previews.GetOwnedAsync(
+                expensePreview.Data!.PreviewId,
+                ownerId,
+                context.ConnectionId);
+            Assert.NotNull(storedExpensePreview);
+            Assert.True(storedExpensePreview.PayloadCiphertext.Length > 29);
+            Assert.Equal(1, storedExpensePreview.PayloadCiphertext[0]);
+            var expenseCreate = await ConfirmAndReplayAsync(writeService, context, expensePreview, "APPLY_CHANGES");
+            var expenseId = expenseCreate.EntityId!;
+            Assert.Equal(expenseCreate.OperationId, (await expenses.GetById(expenseId)).McpOperationId);
+
+            var expenseUpdatePreview = await writeService.PrepareExpenseUpdateAsync(
+                context,
+                new McpExpenseUpdatePreviewInput(
+                    $"expense-update-{suffix}",
+                    expenseId,
+                    $"Mercado ajustado-{suffix}",
+                    "275.90",
+                    expenseCategory.Id,
+                    null,
+                    null));
+            Assert.Equal(250.40m, (await expenses.GetById(expenseId)).Valor);
+            var expenseUpdate = await ConfirmAndReplayAsync(writeService, context, expenseUpdatePreview, "APPLY_CHANGES");
+            var changedExpense = await expenses.GetById(expenseId);
+            Assert.Equal(275.90m, changedExpense.Valor);
+            Assert.Equal(expenseUpdate.OperationId, changedExpense.LastMcpOperationId);
+
+            var expenseDeletePreview = await writeService.PrepareExpenseDeleteAsync(
+                context,
+                new McpExpenseDeletePreviewInput($"expense-delete-{suffix}", expenseId, null));
+            var expenseDelete = await ConfirmAndReplayAsync(writeService, context, expenseDeletePreview, "DELETE_PERMANENTLY");
+            Assert.Null(await expenses.GetById(expenseId));
+            await AssertDeleteReceiptAsync(journals, ownerId, expenseDelete.OperationId, "expense", expenseId);
+
+            var groupingParent = await expenses.Add(new Despesa(
+                DateTime.UtcNow.Year,
+                7,
+                $"Cartão-{suffix}",
+                1000m,
+                expenseCategory,
+                user)
+            {
+                Id = ObjectId.GenerateNewId().ToString()
+            });
+            var groupedPreview = await writeService.PrepareExpenseCreateAsync(
+                context,
+                new McpExpenseCreatePreviewInput(
+                    $"expense-grouped-{suffix}",
+                    DateTime.UtcNow.Year,
+                    7,
+                    $"Farmácia-{suffix}",
+                    "75.00",
+                    expenseCategory.Id,
+                    false,
+                    false,
+                    null,
+                    groupingParent.Id));
+            Assert.Equal(1000m, (await expenses.GetById(groupingParent.Id)).Valor);
+            var groupedCreate = await ConfirmAndReplayAsync(
+                writeService,
+                context,
+                groupedPreview,
+                "APPLY_CHANGES");
+            var synchronizedParent = await expenses.GetById(groupingParent.Id);
+            Assert.Equal(1075m, synchronizedParent.Valor);
+            Assert.Equal(1, synchronizedParent.QuantidadeRegistros);
+            Assert.StartsWith(groupedCreate.OperationId, synchronizedParent.LastMcpOperationId);
+            var groupedJournal = await journals.GetOwnedAsync(groupedCreate.OperationId, ownerId);
+            Assert.Equal(2, groupedJournal!.Steps.Count);
+            Assert.All(groupedJournal.Steps, step => Assert.Equal(McpOperationStepState.Completed, step.State));
+            var groupedChild = Assert.Single(
+                (await expenses.GetDespesasDaAgrupadora(groupingParent.Id)).ToArray());
+            var groupingDeletePreview = await writeService.PrepareExpenseDeleteAsync(
+                context,
+                new McpExpenseDeletePreviewInput(
+                    $"expense-grouping-delete-{suffix}",
+                    groupingParent.Id,
+                    null));
+            Assert.Equal(2, groupingDeletePreview.Data!.Targets.Count);
+            var groupingDelete = await ConfirmAndReplayAsync(
+                writeService,
+                context,
+                groupingDeletePreview,
+                "DELETE_PERMANENTLY");
+            Assert.Null(await expenses.GetById(groupedChild.Id));
+            Assert.Null(await expenses.GetById(groupingParent.Id));
+            var groupingDeleteJournal = await journals.GetOwnedAsync(
+                groupingDelete.OperationId,
+                ownerId);
+            Assert.Equal(2, groupingDeleteJournal!.Steps.Count);
+            Assert.All(
+                groupingDeleteJournal.Steps,
+                step => Assert.Equal(McpOperationStepState.Completed, step.State));
+
+            var investmentPreview = await writeService.PrepareInvestmentCreateAsync(
+                context,
+                new McpInvestmentCreatePreviewInput(
+                    $"investment-create-{suffix}",
+                    DateTime.UtcNow.Year,
+                    7,
+                    $"Tesouro-{suffix}",
+                    "500.00",
+                    investmentCategory.Id));
+            Assert.Equal(0, await database.GetCollection<Investimento>("Investimento")
+                .CountDocumentsAsync(item => item.UsuarioId == ownerId));
+            var investmentCreate = await ConfirmAndReplayAsync(writeService, context, investmentPreview, "APPLY_CHANGES");
+            var investmentId = investmentCreate.EntityId!;
+            Assert.Equal(investmentCreate.OperationId, (await investments.GetById(investmentId)).McpOperationId);
+
+            var investmentUpdatePreview = await writeService.PrepareInvestmentUpdateAsync(
+                context,
+                new McpInvestmentUpdatePreviewInput(
+                    $"investment-update-{suffix}",
+                    investmentId,
+                    $"Tesouro ajustado-{suffix}",
+                    "550.25",
+                    investmentCategory.Id));
+            var investmentUpdate = await ConfirmAndReplayAsync(writeService, context, investmentUpdatePreview, "APPLY_CHANGES");
+            var changedInvestment = await investments.GetById(investmentId);
+            Assert.Equal(550.25m, changedInvestment.Valor);
+            Assert.Equal(investmentUpdate.OperationId, changedInvestment.LastMcpOperationId);
+
+            var investmentDeletePreview = await writeService.PrepareInvestmentDeleteAsync(
+                context,
+                new McpInvestmentDeletePreviewInput($"investment-delete-{suffix}", investmentId));
+            var investmentDelete = await ConfirmAndReplayAsync(writeService, context, investmentDeletePreview, "DELETE_PERMANENTLY");
+            Assert.Null(await investments.GetById(investmentId));
+            await AssertDeleteReceiptAsync(journals, ownerId, investmentDelete.OperationId, "investment", investmentId);
+
+            var fixedCostPreview = await writeService.PrepareFixedCostCreateAsync(
+                context,
+                new McpFixedCostCreatePreviewInput(
+                    $"fixed-create-{suffix}",
+                    $"Internet-{suffix}",
+                    10,
+                    expenseCategory.Id));
+            Assert.Equal(0, await database.GetCollection<CustoFixo>("CustosFixos")
+                .CountDocumentsAsync(item => item.UsuarioId == ownerId));
+            var fixedCostCreate = await ConfirmAndReplayAsync(writeService, context, fixedCostPreview, "APPLY_CHANGES");
+            var fixedCostId = fixedCostCreate.EntityId!;
+            Assert.Equal(fixedCostCreate.OperationId, (await fixedCosts.GetById(fixedCostId)).McpOperationId);
+
+            var fixedCostUpdatePreview = await writeService.PrepareFixedCostUpdateAsync(
+                context,
+                new McpFixedCostUpdatePreviewInput(
+                    $"fixed-update-{suffix}",
+                    fixedCostId,
+                    $"Internet premium-{suffix}",
+                    12,
+                    expenseCategory.Id,
+                    false));
+            var fixedCostUpdate = await ConfirmAndReplayAsync(writeService, context, fixedCostUpdatePreview, "APPLY_CHANGES");
+            var changedFixedCost = await fixedCosts.GetById(fixedCostId);
+            Assert.Equal(12, changedFixedCost.DiaVencimento);
+            Assert.False(changedFixedCost.Ativo);
+            Assert.Equal(fixedCostUpdate.OperationId, changedFixedCost.LastMcpOperationId);
+
+            var fixedCostDeletePreview = await writeService.PrepareFixedCostDeleteAsync(
+                context,
+                new McpFixedCostDeletePreviewInput($"fixed-delete-{suffix}", fixedCostId));
+            var fixedCostDelete = await ConfirmAndReplayAsync(writeService, context, fixedCostDeletePreview, "DELETE_PERMANENTLY");
+            Assert.Null(await fixedCosts.GetById(fixedCostId));
+            await AssertDeleteReceiptAsync(journals, ownerId, fixedCostDelete.OperationId, "fixed_cost", fixedCostId);
+        }
+        finally
+        {
+            foreach (var collection in new[] { "Despesa", "Investimento", "CustosFixos", "Rendimento", "Categoria" })
+                await database.GetCollection<BsonDocument>(collection)
+                    .DeleteManyAsync(Builders<BsonDocument>.Filter.Eq("UsuarioId", ObjectId.Parse(ownerId)));
+            await database.GetCollection<McpPreview>("McpPreviews")
+                .DeleteManyAsync(item => item.UserId == ownerId);
+            await database.GetCollection<McpOperationJournal>("McpOperationJournal")
+                .DeleteManyAsync(item => item.UserId == ownerId);
+        }
+    }
+
     [Fact]
     public async Task Six_confirmed_category_and_income_flows_use_real_services_and_mongo_end_to_end()
     {
@@ -57,6 +330,9 @@ public sealed class McpMongoWritePhase3IntegrationTests(McpMongoFixture mongo)
             new McpWriteDomainGateway(
                 categoryService,
                 incomeService,
+                null!,
+                null!,
+                null!,
                 new McpWriteEffectStore(client)),
             new ConnectionValidator(),
             previews,
@@ -603,7 +879,9 @@ public sealed class McpMongoWritePhase3IntegrationTests(McpMongoFixture mongo)
         McpToolEnvelope<McpPreviewData> preview,
         string decision)
     {
-        Assert.Equal("requires_confirmation", preview.Status);
+        Assert.True(
+            preview.Status == "requires_confirmation",
+            JsonSerializer.Serialize(preview));
         var input = new McpOperationConfirmInput(
             preview.Data!.PreviewId,
             preview.Data.PayloadHash,
@@ -613,8 +891,12 @@ public sealed class McpMongoWritePhase3IntegrationTests(McpMongoFixture mongo)
             context with { CorrelationId = $"{context.CorrelationId}-replay" },
             input);
 
-        Assert.Equal("success", confirmed.Status);
-        Assert.Equal("success", replay.Status);
+        Assert.True(
+            confirmed.Status == "success",
+            JsonSerializer.Serialize(confirmed));
+        Assert.True(
+            replay.Status == "success",
+            JsonSerializer.Serialize(replay));
         Assert.Equal(confirmed.Data!.OperationId, replay.Data!.OperationId);
         Assert.Equal(confirmed.Data.EntityType, replay.Data.EntityType);
         Assert.Equal(confirmed.Data.EntityId, replay.Data.EntityId);
@@ -645,7 +927,9 @@ public sealed class McpMongoWritePhase3IntegrationTests(McpMongoFixture mongo)
         foreach (var mappingName in new[]
                  {
                      "TransacaoMapping",
-                     "RendimentoMapping"
+                     "RendimentoMapping",
+                     "DespesaMapping",
+                     "InvestimentoMapping"
                  })
         {
             var mappingType = assembly.GetTypes().Single(type =>
@@ -659,6 +943,7 @@ public sealed class McpMongoWritePhase3IntegrationTests(McpMongoFixture mongo)
                 ((IMongoMapping)mapping!).RegisterMap(client);
         }
         new CategoriaMapping().RegisterMap(client);
+        new CustoFixoMapping().RegisterMap(client);
         new McpMapping().RegisterMap(client);
     }
 

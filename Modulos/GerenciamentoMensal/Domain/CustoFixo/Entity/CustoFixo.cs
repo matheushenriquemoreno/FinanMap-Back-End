@@ -9,6 +9,9 @@ public class CustoFixo : EntityBase
     public string UsuarioId { get; set; }
     public string CategoriaId { get; set; }
     public bool Ativo { get; set; } = true;
+    public string McpOperationId { get; private set; }
+    public string LastMcpOperationId { get; private set; }
+    public string LastMcpResultHash { get; private set; }
 
     protected CustoFixo()
     {
@@ -33,6 +36,14 @@ public class CustoFixo : EntityBase
         Ativo = ativo;
 
         ValidarDados();
+    }
+
+    public void MarcarCriacaoMcp(string operationId)
+    {
+        if (string.IsNullOrWhiteSpace(Id))
+            Id = Guid.NewGuid().ToString("N")[..24];
+        if (string.IsNullOrWhiteSpace(McpOperationId))
+            McpOperationId = operationId;
     }
 
     private void ValidarDados()

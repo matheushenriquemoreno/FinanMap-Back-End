@@ -16,6 +16,35 @@ namespace Tests;
 public class DespesaServiceTests
 {
     [Fact]
+    public async Task Adicionar_Mcp_preserva_marcador_e_metadados_do_lote()
+    {
+        var fixture = CriarFixtureLoteParcelado();
+        var service = fixture.CriarService();
+
+        var resultado = await service.Adicionar(new CreateDespesaDTO
+        {
+            Ano = 2026,
+            Mes = 7,
+            Descricao = "Notebook",
+            Valor = 300m,
+            CategoriaId = fixture.Categoria.Id,
+            DespesaOrigemId = "lote-mcp",
+            IsParcelado = true,
+            ParcelaAtual = 1,
+            TotalParcelas = 3,
+            McpOperationId = "operacao-mcp"
+        });
+
+        Assert.True(resultado.IsSucess);
+        Assert.NotNull(fixture.Repositorio.DespesaAdicionada);
+        Assert.Equal("operacao-mcp", fixture.Repositorio.DespesaAdicionada!.McpOperationId);
+        Assert.Equal("lote-mcp", fixture.Repositorio.DespesaAdicionada.DespesaOrigemId);
+        Assert.True(fixture.Repositorio.DespesaAdicionada.IsParcelado);
+        Assert.Equal(1, fixture.Repositorio.DespesaAdicionada.ParcelaAtual);
+        Assert.Equal(3, fixture.Repositorio.DespesaAdicionada.TotalParcelas);
+    }
+
+    [Fact]
     public async Task AtualizarDespesaEmLoteAsync_DespesaParcelada_MantemDescricaoSemSufixoDaParcela()
     {
         var fixture = CriarFixtureLoteParcelado();
@@ -147,8 +176,13 @@ public class DespesaServiceTests
     private sealed class DespesaRepositoryFake(List<Despesa> despesas) : IDespesaRepository
     {
         public List<Despesa> DespesasAtualizadas { get; private set; } = [];
+        public Despesa? DespesaAdicionada { get; private set; }
 
-        public Task<Despesa> Add(Despesa entity) => Task.FromResult(entity);
+        public Task<Despesa> Add(Despesa entity)
+        {
+            DespesaAdicionada = entity;
+            return Task.FromResult(entity);
+        }
         public Task<List<Despesa>> Add(List<Despesa> entity) => Task.FromResult(entity);
         public Task Delete(Despesa entity) => Task.CompletedTask;
         public Task DeleteManyAsync(IEnumerable<Despesa> despesas) => Task.CompletedTask;

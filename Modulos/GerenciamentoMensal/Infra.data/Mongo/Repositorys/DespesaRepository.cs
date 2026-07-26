@@ -4,6 +4,8 @@ using Infra.Data.Mongo.RepositoryBase;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
+#nullable enable annotations
+
 namespace Infra.Data.Mongo.Repositorys;
 
 public class DespesaRepository : RepositoryTransacaoBase<Despesa>, IDespesaRepository
@@ -99,4 +101,101 @@ public class DespesaRepository : RepositoryTransacaoBase<Despesa>, IDespesaRepos
             await _entityCollection.DeleteManyAsync(filter);
         }
     }
+
+    public Task<Despesa?> TryUpdateMcpAsync(
+        string id,
+        string userId,
+        McpExpenseSnapshot expected,
+        McpExpenseSnapshot proposed,
+        string operationId,
+        string resultHash,
+        CancellationToken cancellationToken = default)
+    {
+        var filter = SnapshotFilter(id, userId, expected);
+        var update = Builders<Despesa>.Update
+            .Set(item => item.Descricao, proposed.Description)
+            .Set(item => item.Valor, proposed.Amount)
+            .Set(item => item.CategoriaId, proposed.CategoryId)
+            .Set(item => item.IdDespesaAgrupadora, proposed.GroupingExpenseId)
+            .Set(item => item.DespesaOrigemId, proposed.ExpenseOriginId)
+            .Set(item => item.IsParcelado, proposed.IsInstallment)
+            .Set(item => item.IsRecorrente, proposed.IsRecurring)
+            .Set(item => item.ParcelaAtual, proposed.InstallmentNumber)
+            .Set(item => item.TotalParcelas, proposed.InstallmentCount)
+            .Set(item => item.LastMcpOperationId, operationId)
+            .Set(item => item.LastMcpResultHash, resultHash);
+        return _entityCollection.FindOneAndUpdateAsync(
+            filter,
+            update,
+            new FindOneAndUpdateOptions<Despesa>
+            {
+                ReturnDocument = ReturnDocument.After
+            },
+            cancellationToken);
+    }
+
+    public async Task<bool> TryDeleteMcpAsync(
+        string id,
+        string userId,
+        McpExpenseSnapshot expected,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _entityCollection.DeleteOneAsync(
+            SnapshotFilter(id, userId, expected),
+            cancellationToken);
+        return result.DeletedCount == 1;
+    }
+
+    public async Task<Despesa?> TrySynchronizeGroupingMcpAsync(
+        string groupingExpenseId,
+        string userId,
+        decimal expectedParentAmount,
+        decimal baseAmount,
+        string operationId,
+        string resultHash,
+        CancellationToken cancellationToken = default)
+    {
+        var children = await _entityCollection.Find(item =>
+                item.IdDespesaAgrupadora == groupingExpenseId &&
+                item.UsuarioId == userId)
+            .ToListAsync(cancellationToken);
+        var update = Builders<Despesa>.Update
+            .Set(item => item.Valor, baseAmount + children.Sum(item => item.Valor))
+            .Set(item => item.QuantidadeRegistros, children.Count)
+            .Set(item => item.DespesaAgrupadora, children.Count > 0)
+            .Set(item => item.LastMcpOperationId, operationId)
+            .Set(item => item.LastMcpResultHash, resultHash);
+        return await _entityCollection.FindOneAndUpdateAsync(
+            item =>
+                item.Id == groupingExpenseId &&
+                item.UsuarioId == userId &&
+                item.Valor == expectedParentAmount,
+            update,
+            new FindOneAndUpdateOptions<Despesa>
+            {
+                ReturnDocument = ReturnDocument.After
+            },
+            cancellationToken);
+    }
+
+    private static FilterDefinition<Despesa> SnapshotFilter(
+        string id,
+        string userId,
+        McpExpenseSnapshot expected) =>
+        Builders<Despesa>.Filter.Where(item =>
+            item.Id == id &&
+            item.UsuarioId == userId &&
+            item.Ano == expected.Year &&
+            item.Mes == expected.Month &&
+            item.Descricao == expected.Description &&
+            item.Valor == expected.Amount &&
+            item.CategoriaId == expected.CategoryId &&
+            item.IdDespesaAgrupadora == expected.GroupingExpenseId &&
+            item.DespesaOrigemId == expected.ExpenseOriginId &&
+            item.IsParcelado == expected.IsInstallment &&
+            item.IsRecorrente == expected.IsRecurring &&
+            item.ParcelaAtual == expected.InstallmentNumber &&
+            item.TotalParcelas == expected.InstallmentCount);
 }
+
+#nullable restore annotations

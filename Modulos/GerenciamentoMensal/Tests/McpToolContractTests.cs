@@ -84,9 +84,18 @@ public class McpToolContractTests
                 "finanmap_category_create_preview",
                 "finanmap_category_delete_preview",
                 "finanmap_category_update_preview",
+                "finanmap_expense_create_preview",
+                "finanmap_expense_delete_preview",
+                "finanmap_expense_update_preview",
+                "finanmap_fixed_cost_create_preview",
+                "finanmap_fixed_cost_delete_preview",
+                "finanmap_fixed_cost_update_preview",
                 "finanmap_income_create_preview",
                 "finanmap_income_delete_preview",
-                "finanmap_income_update_preview"
+                "finanmap_income_update_preview",
+                "finanmap_investment_create_preview",
+                "finanmap_investment_delete_preview",
+                "finanmap_investment_update_preview"
             },
             tools.Select(item => item.Attribute.Name).ToArray());
         Assert.All(tools, item =>
@@ -115,7 +124,7 @@ public class McpToolContractTests
         var tools = ToolMethods(typeof(McpWriteTools))
             .ToDictionary(item => item.Attribute.Name!, StringComparer.Ordinal);
 
-        Assert.Equal(9, tools.Count);
+        Assert.Equal(18, tools.Count);
 
         var confirm = tools["finanmap_operation_confirm"].Attribute;
         Assert.False(confirm.ReadOnly);

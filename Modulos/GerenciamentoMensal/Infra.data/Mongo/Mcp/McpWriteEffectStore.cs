@@ -81,9 +81,48 @@ public sealed class McpWriteEffectStore(IMongoClient mongoClient)
         return document is null ? null : Map(entity, document);
     }
 
+    public async Task<IReadOnlyList<McpWriteStoredRecord>> ListExpenseBatchAsync(
+        string expenseOriginId,
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        var builder = Builders<BsonDocument>.Filter;
+        var filter = builder.Eq("DespesaOrigemId", expenseOriginId) &
+                     IdFilter(builder, "UsuarioId", userId);
+        var documents = await Collection(McpWriteEntity.Expense)
+            .Find(filter)
+            .ToListAsync(cancellationToken);
+        return documents
+            .Select(document => Map(McpWriteEntity.Expense, document))
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyList<McpWriteStoredRecord>> ListGroupedExpensesAsync(
+        string groupingExpenseId,
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        var collection = Collection(McpWriteEntity.Expense);
+        var builder = Builders<BsonDocument>.Filter;
+        var filter = IdFilter(builder, "IdDespesaAgrupadora", groupingExpenseId) &
+                     IdFilter(builder, "UsuarioId", userId);
+        var documents = await collection.Find(filter).ToListAsync(cancellationToken);
+        return documents
+            .Select(document => Map(McpWriteEntity.Expense, document))
+            .ToArray();
+    }
+
     private IMongoCollection<BsonDocument> Collection(McpWriteEntity entity) =>
         _database.GetCollection<BsonDocument>(
-            entity == McpWriteEntity.Category ? "Categoria" : "Rendimento");
+            entity switch
+            {
+                McpWriteEntity.Category => "Categoria",
+                McpWriteEntity.Income => "Rendimento",
+                McpWriteEntity.Expense => "Despesa",
+                McpWriteEntity.Investment => "Investimento",
+                McpWriteEntity.FixedCost => "CustosFixos",
+                _ => throw new ArgumentOutOfRangeException(nameof(entity))
+            });
 
     private static FilterDefinition<BsonDocument> OwnedFilter(
         string id,
@@ -108,21 +147,22 @@ public sealed class McpWriteEffectStore(IMongoClient mongoClient)
         McpWriteEntity entity,
         BsonDocument document)
     {
-        var values = entity == McpWriteEntity.Category
-            ? new Dictionary<string, object?>
+        var values = entity switch
+        {
+            McpWriteEntity.Category => new Dictionary<string, object?>
             {
                 ["name"] = document.GetValue("Nome", "").AsString,
                 ["type"] = ((TipoCategoria)document.GetValue("Tipo", 0).ToInt32()).ToString()
-            }
-            : new Dictionary<string, object?>
+            },
+            McpWriteEntity.FixedCost => new Dictionary<string, object?>
             {
-                ["year"] = document.GetValue("Ano", 0).ToInt32(),
-                ["month"] = document.GetValue("Mes", 0).ToInt32(),
-                ["description"] = document.GetValue("Descricao", "").AsString,
-                ["amount"] = Decimal(document.GetValue("Valor", 0))
-                    .ToString("0.00", CultureInfo.InvariantCulture),
-                ["categoryId"] = IdText(document.GetValue("CategoriaId", BsonNull.Value))
-            };
+                ["name"] = document.GetValue("Nome", "").AsString,
+                ["dueDay"] = document.GetValue("DiaVencimento", 0).ToInt32(),
+                ["categoryId"] = OptionalIdText(document, "CategoriaId"),
+                ["active"] = document.GetValue("Ativo", true).ToBoolean()
+            },
+            _ => TransactionValues(entity, document)
+        };
         return new McpWriteStoredRecord(
             IdText(document["_id"]),
             entity,
@@ -130,6 +170,33 @@ public sealed class McpWriteEffectStore(IMongoClient mongoClient)
             OptionalText(document, "McpOperationId"),
             OptionalText(document, "LastMcpOperationId"),
             OptionalText(document, "LastMcpResultHash"));
+    }
+
+    private static Dictionary<string, object?> TransactionValues(
+        McpWriteEntity entity,
+        BsonDocument document)
+    {
+        var values = new Dictionary<string, object?>
+        {
+            ["year"] = document.GetValue("Ano", 0).ToInt32(),
+            ["month"] = document.GetValue("Mes", 0).ToInt32(),
+            ["description"] = document.GetValue("Descricao", "").AsString,
+            ["amount"] = Decimal(document.GetValue("Valor", 0))
+                .ToString("0.00", CultureInfo.InvariantCulture),
+            ["categoryId"] = IdText(document.GetValue("CategoriaId", BsonNull.Value))
+        };
+        if (entity == McpWriteEntity.Expense)
+        {
+            values["groupingExpenseId"] = OptionalIdText(
+                document,
+                "IdDespesaAgrupadora");
+            values["expenseOriginId"] = OptionalText(document, "DespesaOrigemId");
+            values["isInstallment"] = document.GetValue("IsParcelado", false).ToBoolean();
+            values["isRecurring"] = document.GetValue("IsRecorrente", false).ToBoolean();
+            values["installmentNumber"] = OptionalInt(document, "ParcelaAtual");
+            values["installmentCount"] = OptionalInt(document, "TotalParcelas");
+        }
+        return values;
     }
 
     private static string IdText(BsonValue value) =>
@@ -142,6 +209,16 @@ public sealed class McpWriteEffectStore(IMongoClient mongoClient)
         !value.IsBsonNull &&
         value.IsString
             ? value.AsString
+            : null;
+
+    private static string? OptionalIdText(BsonDocument document, string name) =>
+        document.TryGetValue(name, out var value) && !value.IsBsonNull
+            ? IdText(value)
+            : null;
+
+    private static int? OptionalInt(BsonDocument document, string name) =>
+        document.TryGetValue(name, out var value) && !value.IsBsonNull
+            ? value.ToInt32()
             : null;
 
     private static decimal Decimal(BsonValue value) =>

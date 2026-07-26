@@ -28,6 +28,9 @@ public sealed class McpMapping : IMongoMapping
         CreatePreviewIndexes(database.GetCollection<McpPreview>("McpPreviews"));
         CreateFinancialEffectIndexes(database.GetCollection<BsonDocument>("Categoria"));
         CreateFinancialEffectIndexes(database.GetCollection<BsonDocument>("Rendimento"));
+        CreateFinancialEffectIndexes(database.GetCollection<BsonDocument>("Despesa"));
+        CreateFinancialEffectIndexes(database.GetCollection<BsonDocument>("Investimento"));
+        CreateFinancialEffectIndexes(database.GetCollection<BsonDocument>("CustosFixos"));
     }
 
     private static void CreateConnectionIndexes(IMongoCollection<McpConnection> collection)

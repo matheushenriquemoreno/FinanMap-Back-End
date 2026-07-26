@@ -11,4 +11,7 @@ public class CreateCustoFixoDTO
     public int DiaVencimento { get; set; }
 
     public string CategoriaId { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string McpOperationId { get; set; }
 }

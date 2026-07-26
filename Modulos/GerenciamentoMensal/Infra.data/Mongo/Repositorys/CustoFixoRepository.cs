@@ -5,6 +5,8 @@ using Infra.Data.Mongo.RepositoryBase;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
+#nullable enable annotations
+
 namespace Infra.Data.Mongo.Repositorys;
 
 public class CustoFixoRepository : RepositoryMongoBase<CustoFixo>, ICustoFixoRepository
@@ -76,4 +78,57 @@ public class CustoFixoRepository : RepositoryMongoBase<CustoFixo>, ICustoFixoRep
 
         return await _entityCollection.Find(filtro).ToListAsync();
     }
+
+    public Task<CustoFixo?> TryUpdateMcpAsync(
+        string id,
+        string userId,
+        McpFixedCostSnapshot expected,
+        McpFixedCostSnapshot proposed,
+        string operationId,
+        string resultHash,
+        CancellationToken cancellationToken = default)
+    {
+        var filter = SnapshotFilter(id, userId, expected);
+        var update = Builders<CustoFixo>.Update
+            .Set(item => item.Nome, proposed.Name)
+            .Set(item => item.DiaVencimento, proposed.DueDay)
+            .Set(item => item.CategoriaId, proposed.CategoryId)
+            .Set(item => item.Ativo, proposed.Active)
+            .Set(item => item.LastMcpOperationId, operationId)
+            .Set(item => item.LastMcpResultHash, resultHash);
+        return _entityCollection.FindOneAndUpdateAsync(
+            filter,
+            update,
+            new FindOneAndUpdateOptions<CustoFixo>
+            {
+                ReturnDocument = ReturnDocument.After
+            },
+            cancellationToken);
+    }
+
+    public async Task<bool> TryDeleteMcpAsync(
+        string id,
+        string userId,
+        McpFixedCostSnapshot expected,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _entityCollection.DeleteOneAsync(
+            SnapshotFilter(id, userId, expected),
+            cancellationToken);
+        return result.DeletedCount == 1;
+    }
+
+    private static FilterDefinition<CustoFixo> SnapshotFilter(
+        string id,
+        string userId,
+        McpFixedCostSnapshot expected) =>
+        Builders<CustoFixo>.Filter.Where(item =>
+            item.Id == id &&
+            item.UsuarioId == userId &&
+            item.Nome == expected.Name &&
+            item.DiaVencimento == expected.DueDay &&
+            item.CategoriaId == expected.CategoryId &&
+            item.Ativo == expected.Active);
 }
+
+#nullable restore annotations

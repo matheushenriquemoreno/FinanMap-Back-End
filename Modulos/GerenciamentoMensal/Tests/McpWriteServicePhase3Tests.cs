@@ -665,7 +665,7 @@ public sealed class McpWriteServicePhase3Tests
             "RESULT_PERSISTENCE_PENDING",
             Assert.Single(confirmation.Errors).Code);
         Assert.False(confirmation.Data!.RetryAllowed);
-        Assert.Equal(1, gateway.ExecuteCount);
+        Assert.Equal(0, gateway.ExecuteCount);
     }
 
     [Fact]
@@ -729,6 +729,503 @@ public sealed class McpWriteServicePhase3Tests
         Assert.DoesNotContain("PayloadCiphertext", journal.ResultSummary.Keys);
     }
 
+    [Fact]
+    public async Task MCP_P4_06_multi_document_confirmation_persists_and_executes_each_step_once()
+    {
+        var events = new List<string>();
+        var values = new Dictionary<string, object?>
+        {
+            ["year"] = 2026,
+            ["month"] = 7,
+            ["description"] = "Curso",
+            ["amount"] = "300.00",
+            ["categoryId"] = "category-expense",
+            ["isInstallment"] = true,
+            ["isRecurring"] = false,
+            ["recurrenceCount"] = 3
+        };
+        var command = new McpWriteCommand(
+            McpWriteEntity.Expense,
+            McpPreviewAction.Create,
+            null,
+            values,
+            Steps:
+            [
+                new McpWriteStepPlan(
+                    "expense-001",
+                    null,
+                    new Dictionary<string, object?>(values)
+                    {
+                        ["month"] = 7,
+                        ["amount"] = "100.00"
+                    },
+                    null),
+                new McpWriteStepPlan(
+                    "expense-002",
+                    null,
+                    new Dictionary<string, object?>(values)
+                    {
+                        ["month"] = 8,
+                        ["amount"] = "100.00"
+                    },
+                    null),
+                new McpWriteStepPlan(
+                    "expense-003",
+                    null,
+                    new Dictionary<string, object?>(values)
+                    {
+                        ["month"] = 9,
+                        ["amount"] = "100.00"
+                    },
+                    null)
+            ]);
+        var gateway = new DomainGatewayFake(events)
+        {
+            Preparation = McpDomainPreparation.Ready(
+                command,
+                null,
+                values,
+                [])
+        };
+        var previews = new PreviewRepositoryFake(events);
+        var journals = new JournalRepositoryFake(events);
+        var service = CreateService(gateway, previews, journals, events);
+        var prepared = await service.PrepareExpenseCreateAsync(
+            Context(),
+            new McpExpenseCreatePreviewInput(
+                "request-expense-lot",
+                2026,
+                7,
+                "Curso",
+                "300.00",
+                "category-expense",
+                true,
+                false,
+                3,
+                null));
+
+        var confirmed = await service.ConfirmAsync(
+            Context(),
+            new McpOperationConfirmInput(
+                prepared.Data!.PreviewId,
+                prepared.Data.PayloadHash,
+                "APPLY_CHANGES"));
+
+        Assert.Equal("success", confirmed.Status);
+        Assert.Equal(3, gateway.ExecuteCount);
+        var journal = journals.Items.Single(item => item.PreviewId == prepared.Data.PreviewId);
+        Assert.Equal(3, journal.Steps.Count);
+        Assert.All(
+            journal.Steps,
+            step => Assert.Equal(McpOperationStepState.Completed, step.State));
+        Assert.Equal(
+            3,
+            events.Count(item => item == "step-persisted-before-effect"));
+    }
+
+    [Theory]
+    [InlineData("required_description", "description")]
+    [InlineData("required_category", "categoryId")]
+    [InlineData("amount_format", "amount")]
+    [InlineData("amount_zero", "amount")]
+    [InlineData("year", "year")]
+    [InlineData("month", "month")]
+    [InlineData("recurrence_incompatible", "recurrence")]
+    [InlineData("recurrence_min", "recurrenceCount")]
+    [InlineData("recurrence_max", "recurrenceCount")]
+    [InlineData("recurrence_ambiguous", "recurrence")]
+    public async Task MCP_65_66_expense_validation_matrix_is_actionable_and_has_no_effect(
+        string scenario,
+        string expectedField)
+    {
+        var input = new McpExpenseCreatePreviewInput(
+            $"expense-negative-{scenario}",
+            2026,
+            7,
+            "Mercado",
+            "100.00",
+            "category-expense",
+            false,
+            false,
+            null,
+            null);
+        input = scenario switch
+        {
+            "required_description" => input with { Description = " " },
+            "required_category" => input with { CategoryId = " " },
+            "amount_format" => input with { Amount = "abc" },
+            "amount_zero" => input with { Amount = "0" },
+            "year" => input with { Year = 2020 },
+            "month" => input with { Month = 13 },
+            "recurrence_incompatible" => input with
+            {
+                IsInstallment = true,
+                IsRecurring = true,
+                RecurrenceCount = 2
+            },
+            "recurrence_min" => input with
+            {
+                IsInstallment = true,
+                RecurrenceCount = 1
+            },
+            "recurrence_max" => input with
+            {
+                IsRecurring = true,
+                RecurrenceCount = 25
+            },
+            "recurrence_ambiguous" => input with { RecurrenceCount = 3 },
+            _ => throw new ArgumentOutOfRangeException(nameof(scenario))
+        };
+        var events = new List<string>();
+        var gateway = new DomainGatewayFake(events)
+        {
+            Preparation = Ready(McpWriteEntity.Expense, McpPreviewAction.Create)
+        };
+        var previews = new PreviewRepositoryFake(events);
+        var journals = new JournalRepositoryFake(events);
+        var service = CreateService(gateway, previews, journals, events);
+
+        var result = await service.PrepareExpenseCreateAsync(Context(), input);
+
+        AssertPhase4Rejection(
+            result,
+            "VALIDATION_REQUIRED",
+            expectedField,
+            gateway,
+            previews,
+            journals);
+    }
+
+    [Theory]
+    [InlineData("required_description", "description")]
+    [InlineData("required_category", "categoryId")]
+    [InlineData("amount_format", "amount")]
+    [InlineData("amount_zero", "amount")]
+    [InlineData("year", "year")]
+    [InlineData("month", "month")]
+    public async Task MCP_65_66_investment_validation_matrix_is_actionable_and_has_no_effect(
+        string scenario,
+        string expectedField)
+    {
+        var input = new McpInvestmentCreatePreviewInput(
+            $"investment-negative-{scenario}",
+            2026,
+            7,
+            "Tesouro",
+            "100.00",
+            "category-investment");
+        input = scenario switch
+        {
+            "required_description" => input with { Description = " " },
+            "required_category" => input with { CategoryId = " " },
+            "amount_format" => input with { Amount = "abc" },
+            "amount_zero" => input with { Amount = "0" },
+            "year" => input with { Year = 2020 },
+            "month" => input with { Month = 13 },
+            _ => throw new ArgumentOutOfRangeException(nameof(scenario))
+        };
+        var events = new List<string>();
+        var gateway = new DomainGatewayFake(events)
+        {
+            Preparation = Ready(McpWriteEntity.Investment, McpPreviewAction.Create)
+        };
+        var previews = new PreviewRepositoryFake(events);
+        var journals = new JournalRepositoryFake(events);
+        var service = CreateService(gateway, previews, journals, events);
+
+        var result = await service.PrepareInvestmentCreateAsync(Context(), input);
+
+        AssertPhase4Rejection(
+            result,
+            "VALIDATION_REQUIRED",
+            expectedField,
+            gateway,
+            previews,
+            journals);
+    }
+
+    [Theory]
+    [InlineData("required_name", "name")]
+    [InlineData("due_day_min", "dueDay")]
+    [InlineData("due_day_max", "dueDay")]
+    [InlineData("empty_update", "changes")]
+    public async Task MCP_65_66_fixed_cost_validation_matrix_is_actionable_and_has_no_effect(
+        string scenario,
+        string expectedField)
+    {
+        var events = new List<string>();
+        var gateway = new DomainGatewayFake(events)
+        {
+            Preparation = Ready(McpWriteEntity.FixedCost, McpPreviewAction.Create)
+        };
+        var previews = new PreviewRepositoryFake(events);
+        var journals = new JournalRepositoryFake(events);
+        var service = CreateService(gateway, previews, journals, events);
+
+        var result = scenario switch
+        {
+            "required_name" => await service.PrepareFixedCostCreateAsync(
+                Context(),
+                new McpFixedCostCreatePreviewInput(
+                    "fixed-name-negative",
+                    " ",
+                    10,
+                    null)),
+            "due_day_min" => await service.PrepareFixedCostCreateAsync(
+                Context(),
+                new McpFixedCostCreatePreviewInput(
+                    "fixed-day-min-negative",
+                    "Internet",
+                    0,
+                    null)),
+            "due_day_max" => await service.PrepareFixedCostCreateAsync(
+                Context(),
+                new McpFixedCostCreatePreviewInput(
+                    "fixed-day-max-negative",
+                    "Internet",
+                    32,
+                    null)),
+            "empty_update" => await service.PrepareFixedCostUpdateAsync(
+                Context(),
+                new McpFixedCostUpdatePreviewInput(
+                    "fixed-empty-update",
+                    "fixed-a",
+                    null,
+                    null,
+                    null,
+                    null)),
+            _ => throw new ArgumentOutOfRangeException(nameof(scenario))
+        };
+
+        AssertPhase4Rejection(
+            result,
+            "VALIDATION_REQUIRED",
+            expectedField,
+            gateway,
+            previews,
+            journals);
+    }
+
+    [Theory]
+    [InlineData("expense_category_incompatible", "CATEGORY_RELATIONSHIP_INVALID", "categoryId")]
+    [InlineData("investment_category_incompatible", "CATEGORY_RELATIONSHIP_INVALID", "categoryId")]
+    [InlineData("fixed_cost_category_incompatible", "CATEGORY_RELATIONSHIP_INVALID", "categoryId")]
+    [InlineData("expense_category_cross_account", "RECORD_NOT_FOUND", "categoryId")]
+    [InlineData("investment_category_cross_account", "RECORD_NOT_FOUND", "categoryId")]
+    [InlineData("fixed_cost_category_cross_account", "RECORD_NOT_FOUND", "categoryId")]
+    [InlineData("grouping_missing", "RECORD_NOT_FOUND", "groupingExpenseId")]
+    [InlineData("grouping_cross_account", "RECORD_NOT_FOUND", "groupingExpenseId")]
+    [InlineData("grouping_self_reference", "GROUPING_RELATIONSHIP_INVALID", "groupingExpenseId")]
+    public async Task MCP_69_P4_05_relationship_matrix_is_safe_and_has_no_effect(
+        string scenario,
+        string expectedCode,
+        string expectedField)
+    {
+        var events = new List<string>();
+        var effects = new RelationshipEffectStoreFake();
+        effects.Add(
+            "owner-a",
+            CategoryRecord("category-expense", "Despesa"));
+        effects.Add(
+            "owner-a",
+            CategoryRecord("category-investment", "Investimento"));
+        effects.Add(
+            "owner-a",
+            CategoryRecord("category-incompatible", "Rendimento"));
+        if (scenario.EndsWith("_category_cross_account", StringComparison.Ordinal))
+        {
+            var categoryType = scenario.StartsWith("investment", StringComparison.Ordinal)
+                ? "Investimento"
+                : "Despesa";
+            effects.Add(
+                "owner-b",
+                CategoryRecord("category-cross-account", categoryType));
+        }
+        if (scenario == "grouping_cross_account")
+        {
+            effects.Add(
+                "owner-b",
+                ExpenseStoredRecord("grouping-cross-account", "category-expense"));
+        }
+        if (scenario == "grouping_self_reference")
+        {
+            effects.Add(
+                "owner-a",
+                ExpenseStoredRecord("expense-self", "category-expense"));
+        }
+        var gateway = new McpWriteDomainGateway(
+            null!,
+            null!,
+            null!,
+            null!,
+            null!,
+            effects);
+        var previews = new PreviewRepositoryFake(events);
+        var journals = new JournalRepositoryFake(events);
+        var service = CreateService(gateway, previews, journals, events);
+
+        var result = scenario switch
+        {
+            "expense_category_incompatible" => await service.PrepareExpenseCreateAsync(
+                Context(),
+                ExpenseInput("expense-category-incompatible", "category-incompatible")),
+            "investment_category_incompatible" => await service.PrepareInvestmentCreateAsync(
+                Context(),
+                InvestmentInput("investment-category-incompatible", "category-incompatible")),
+            "fixed_cost_category_incompatible" => await service.PrepareFixedCostCreateAsync(
+                Context(),
+                FixedCostInput("fixed-category-incompatible", "category-incompatible")),
+            "expense_category_cross_account" => await service.PrepareExpenseCreateAsync(
+                Context(),
+                ExpenseInput("expense-category-cross", "category-cross-account")),
+            "investment_category_cross_account" => await service.PrepareInvestmentCreateAsync(
+                Context(),
+                InvestmentInput("investment-category-cross", "category-cross-account")),
+            "fixed_cost_category_cross_account" => await service.PrepareFixedCostCreateAsync(
+                Context(),
+                FixedCostInput("fixed-category-cross", "category-cross-account")),
+            "grouping_missing" => await service.PrepareExpenseCreateAsync(
+                Context(),
+                ExpenseInput(
+                    "expense-grouping-missing",
+                    "category-expense",
+                    "grouping-missing")),
+            "grouping_cross_account" => await service.PrepareExpenseCreateAsync(
+                Context(),
+                ExpenseInput(
+                    "expense-grouping-cross",
+                    "category-expense",
+                    "grouping-cross-account")),
+            "grouping_self_reference" => await service.PrepareExpenseUpdateAsync(
+                Context(),
+                new McpExpenseUpdatePreviewInput(
+                    "expense-grouping-self",
+                    "expense-self",
+                    null,
+                    null,
+                    null,
+                    "expense-self",
+                    null)),
+            _ => throw new ArgumentOutOfRangeException(nameof(scenario))
+        };
+
+        AssertPhase4Rejection(
+            result,
+            expectedCode,
+            expectedField,
+            null,
+            previews,
+            journals);
+    }
+
+    private static void AssertPhase4Rejection(
+        McpToolEnvelope<McpPreviewData> result,
+        string expectedCode,
+        string expectedField,
+        DomainGatewayFake? gateway,
+        PreviewRepositoryFake previews,
+        JournalRepositoryFake journals)
+    {
+        Assert.Equal("needs_clarification", result.Status);
+        Assert.Null(result.Data);
+        var error = Assert.Single(result.Errors);
+        Assert.Equal(expectedCode, error.Code);
+        Assert.Equal(expectedField, error.Field);
+        Assert.False(error.Retryable);
+        Assert.False(string.IsNullOrWhiteSpace(error.Message));
+        var details = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(
+            error.Details);
+        var guidance = Assert.IsType<string>(details["guidance"]);
+        Assert.False(string.IsNullOrWhiteSpace(guidance));
+        Assert.DoesNotContain("owner-b", guidance, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("cross-account", guidance, StringComparison.OrdinalIgnoreCase);
+        if (gateway is not null)
+        {
+            Assert.Equal(0, gateway.PrepareCount);
+            Assert.Equal(0, gateway.ExecuteCount);
+        }
+        Assert.Null(previews.LastCreated);
+        var journal = Assert.Single(journals.Items);
+        Assert.Equal(McpOperationState.Rejected, journal.State);
+        Assert.Empty(journal.TargetRefs);
+        Assert.Empty(journal.Steps);
+    }
+
+    private static McpExpenseCreatePreviewInput ExpenseInput(
+        string requestId,
+        string categoryId,
+        string? groupingExpenseId = null) =>
+        new(
+            requestId,
+            2026,
+            7,
+            "Mercado",
+            "100.00",
+            categoryId,
+            false,
+            false,
+            null,
+            groupingExpenseId);
+
+    private static McpInvestmentCreatePreviewInput InvestmentInput(
+        string requestId,
+        string categoryId) =>
+        new(
+            requestId,
+            2026,
+            7,
+            "Tesouro",
+            "100.00",
+            categoryId);
+
+    private static McpFixedCostCreatePreviewInput FixedCostInput(
+        string requestId,
+        string categoryId) =>
+        new(
+            requestId,
+            "Internet",
+            10,
+            categoryId);
+
+    private static McpWriteStoredRecord CategoryRecord(
+        string id,
+        string type) =>
+        new(
+            id,
+            McpWriteEntity.Category,
+            new Dictionary<string, object?>
+            {
+                ["name"] = "Categoria",
+                ["type"] = type
+            },
+            null,
+            null,
+            null);
+
+    private static McpWriteStoredRecord ExpenseStoredRecord(
+        string id,
+        string categoryId) =>
+        new(
+            id,
+            McpWriteEntity.Expense,
+            new Dictionary<string, object?>
+            {
+                ["year"] = 2026,
+                ["month"] = 7,
+                ["description"] = "Despesa",
+                ["amount"] = "100.00",
+                ["categoryId"] = categoryId,
+                ["groupingExpenseId"] = null,
+                ["expenseOriginId"] = null,
+                ["isInstallment"] = false,
+                ["isRecurring"] = false,
+                ["installmentNumber"] = null,
+                ["installmentCount"] = null
+            },
+            null,
+            null,
+            null);
+
     private static McpDomainPreparation Ready(
         McpWriteEntity entity,
         McpPreviewAction action)
@@ -777,7 +1274,7 @@ public sealed class McpWriteServicePhase3Tests
     }
 
     private static McpWriteService CreateService(
-        DomainGatewayFake gateway,
+        IMcpWriteDomainGateway gateway,
         PreviewRepositoryFake previews,
         JournalRepositoryFake journals,
         List<string> events,
@@ -1062,13 +1559,50 @@ public sealed class McpWriteServicePhase3Tests
         public Task<bool> ReplaceAsync(
             McpOperationJournal journal,
             int expectedVersion,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(!FailReplace);
+            CancellationToken cancellationToken = default)
+        {
+            if (journal.Steps.Any(step =>
+                    step.State == McpOperationStepState.Executing))
+            {
+                events.Add("step-persisted-before-effect");
+            }
+            return Task.FromResult(!FailReplace);
+        }
 
         public Task<IReadOnlyList<McpOperationJournal>> ListRecoverableAsync(
             DateTime nowUtc,
             int limit,
             CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<McpOperationJournal>>([]);
+    }
+
+    private sealed class RelationshipEffectStoreFake : IMcpWriteEffectStore
+    {
+        private readonly Dictionary<
+            (string OwnerId, McpWriteEntity Entity, string Id),
+            McpWriteStoredRecord> _items = [];
+
+        public void Add(string ownerId, McpWriteStoredRecord record) =>
+            _items[(ownerId, record.Entity, record.Id)] = record;
+
+        public Task<McpWriteStoredRecord?> LoadOwnedAsync(
+            McpWriteEntity entity,
+            string id,
+            string userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(_items.GetValueOrDefault((userId, entity, id)));
+
+        public Task<bool> CategoryHasLinksAsync(
+            string id,
+            string userId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<McpWriteStoredRecord?> FindEffectAsync(
+            McpWriteEntity entity,
+            string userId,
+            string operationId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<McpWriteStoredRecord?>(null);
     }
 }

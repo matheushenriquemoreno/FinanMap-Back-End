@@ -48,6 +48,9 @@ public sealed class McpWriteDomainGatewayPhase3Tests
         var gateway = new McpWriteDomainGateway(
             new CategoriaServiceFake(),
             new RendimentoServiceFake(),
+            null!,
+            null!,
+            null!,
             store);
         var command = new McpWriteCommand(
             McpWriteEntity.Income,
@@ -124,6 +127,9 @@ public sealed class McpWriteDomainGatewayPhase3Tests
         var gateway = new McpWriteDomainGateway(
             categoryService,
             new RendimentoServiceFake(),
+            null!,
+            null!,
+            null!,
             store);
         var create = new McpWriteCommand(
             McpWriteEntity.Category,

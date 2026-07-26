@@ -1,6 +1,7 @@
 #nullable enable
 
 using Domain.Enum;
+using Domain.Enums;
 using Domain.Mcp.Entities;
 using Domain.Mcp.Enums;
 
@@ -9,7 +10,10 @@ namespace Application.Mcp.Models;
 public enum McpWriteEntity
 {
     Category,
-    Income
+    Income,
+    Expense,
+    Investment,
+    FixedCost
 }
 
 public sealed record McpCategoryCreatePreviewInput(
@@ -42,6 +46,69 @@ public sealed record McpIncomeUpdatePreviewInput(
     string? CategoryId);
 
 public sealed record McpIncomeDeletePreviewInput(
+    string RequestId,
+    string Id);
+
+public sealed record McpExpenseCreatePreviewInput(
+    string RequestId,
+    int Year,
+    int Month,
+    string Description,
+    string Amount,
+    string CategoryId,
+    bool IsInstallment,
+    bool IsRecurring,
+    int? RecurrenceCount,
+    string? GroupingExpenseId);
+
+public sealed record McpExpenseUpdatePreviewInput(
+    string RequestId,
+    string Id,
+    string? Description,
+    string? Amount,
+    string? CategoryId,
+    string? GroupingExpenseId,
+    ModificadorLote? BatchModifier);
+
+public sealed record McpExpenseDeletePreviewInput(
+    string RequestId,
+    string Id,
+    ModificadorLote? BatchModifier);
+
+public sealed record McpInvestmentCreatePreviewInput(
+    string RequestId,
+    int Year,
+    int Month,
+    string Description,
+    string Amount,
+    string CategoryId);
+
+public sealed record McpInvestmentUpdatePreviewInput(
+    string RequestId,
+    string Id,
+    string? Description,
+    string? Amount,
+    string? CategoryId);
+
+public sealed record McpInvestmentDeletePreviewInput(
+    string RequestId,
+    string Id);
+
+public sealed record McpFixedCostCreatePreviewInput(
+    string RequestId,
+    string Name,
+    int DueDay,
+    string? CategoryId);
+
+public sealed record McpFixedCostUpdatePreviewInput(
+    string RequestId,
+    string Id,
+    string? Name,
+    int? DueDay,
+    string? CategoryId,
+    bool? Active);
+
+public sealed record McpFixedCostDeletePreviewInput(
     string RequestId,
     string Id);
 
@@ -97,7 +164,16 @@ public sealed record McpWriteCommand(
     McpPreviewAction Action,
     string? TargetId,
     IReadOnlyDictionary<string, object?> Values,
-    IReadOnlyDictionary<string, object?>? ExpectedValues = null);
+    IReadOnlyDictionary<string, object?>? ExpectedValues = null,
+    IReadOnlyList<McpWriteStepPlan>? Steps = null,
+    string? StepType = null);
+
+public sealed record McpWriteStepPlan(
+    string Name,
+    string? TargetId,
+    IReadOnlyDictionary<string, object?> Values,
+    IReadOnlyDictionary<string, object?>? ExpectedValues,
+    string? Type = null);
 
 public sealed record McpDomainPreparation(
     McpWriteCommand Command,

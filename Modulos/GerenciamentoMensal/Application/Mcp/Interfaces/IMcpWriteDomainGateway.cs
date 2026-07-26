@@ -52,4 +52,16 @@ public interface IMcpWriteEffectStore
         string userId,
         string operationId,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<McpWriteStoredRecord>> ListExpenseBatchAsync(
+        string expenseOriginId,
+        string userId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<McpWriteStoredRecord>>([]);
+
+    Task<IReadOnlyList<McpWriteStoredRecord>> ListGroupedExpensesAsync(
+        string groupingExpenseId,
+        string userId,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<McpWriteStoredRecord>>([]);
 }

@@ -1,14 +1,19 @@
 ﻿using Application.DTOs;
 using Application.Interfaces;
+using Application.Mcp.Models;
 using Application.Shared.Transacao.DTOs;
 using Domain.Compartilhamento.Entity;
 using Domain.Entity;
+using Domain.Enum;
 using Domain.Enums;
 using Domain.Login.Interfaces;
 using Domain.Relatorios.AcumuladoMensal;
 using Domain.Relatorios.Entity;
 using Domain.Repository;
+using System.Globalization;
 using System.Text.RegularExpressions;
+
+#nullable enable annotations
 
 namespace Application.Services;
 
@@ -41,6 +46,13 @@ public class DespesaService : IDespesaService
             return Result.Failure<ResultDespesaDTO>(Error.NotFound("Categoria informada não existe!"));
 
         Despesa despesa = new Despesa(createDTO.Ano, createDTO.Mes, createDTO.Descricao, createDTO.Valor, categoria, _usuarioLogado.UsuarioContextoDados);
+        despesa.DespesaOrigemId = createDTO.DespesaOrigemId;
+        despesa.IsParcelado = createDTO.IsParcelado;
+        despesa.IsRecorrente = createDTO.IsRecorrente;
+        despesa.ParcelaAtual = createDTO.ParcelaAtual;
+        despesa.TotalParcelas = createDTO.TotalParcelas;
+        if (!string.IsNullOrWhiteSpace(createDTO.McpOperationId))
+            despesa.MarcarCriacaoMcp(createDTO.McpOperationId);
 
         if (!string.IsNullOrEmpty(createDTO.IdDespesaAgrupadora))
         {
@@ -50,7 +62,8 @@ public class DespesaService : IDespesaService
 
             var contextoAgrupadora = await _agrupamentoService.CapturarContextoAsync(despesaAgrupadora.Id);
             _agrupamentoService.Vincular(despesa, despesaAgrupadora);
-            await _agrupamentoService.SincronizarAgrupadoraComFilhasPendentesAsync(contextoAgrupadora, [despesa]);
+            if (string.IsNullOrWhiteSpace(createDTO.McpOperationId))
+                await _agrupamentoService.SincronizarAgrupadoraComFilhasPendentesAsync(contextoAgrupadora, [despesa]);
         }
 
         await _repository.Add(despesa);
@@ -248,6 +261,157 @@ public class DespesaService : IDespesaService
 
         return Result.Success(ObterDespesaDTO(despesa, reportAcumulado));
     }
+
+    public async Task<McpApplicationMutationResult> AplicarMutacaoMcpAsync(
+        McpWriteCommand command,
+        string operationId,
+        string resultHash,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.Entity != McpWriteEntity.Expense ||
+            command.TargetId is null ||
+            command.ExpectedValues is null ||
+            !TryMcpSnapshot(command.ExpectedValues, out var expected))
+            return McpRejected("PREVIEW_PAYLOAD_INVALID", "A prévia de despesa não contém o snapshot obrigatório.");
+
+        if (command.Action == Domain.Mcp.Enums.McpPreviewAction.Update)
+        {
+            var values = new Dictionary<string, object?>(command.ExpectedValues);
+            foreach (var change in command.Values)
+                values[change.Key] = change.Value;
+            if (!TryMcpSnapshot(values, out var proposed))
+                return McpRejected("PREVIEW_PAYLOAD_INVALID", "Os valores propostos para a despesa são inválidos.");
+
+            var category = await _categoriaRepository.GetById(proposed.CategoryId);
+            if (category is null ||
+                category.UsuarioId != _usuarioLogado.IdContextoDados ||
+                category.Tipo != TipoCategoria.Despesa)
+                return McpRejected("CATEGORY_RELATIONSHIP_INVALID", "A categoria proposta não existe nesta conta ou não aceita despesas.");
+
+            if (!string.IsNullOrWhiteSpace(proposed.GroupingExpenseId))
+            {
+                var grouping = await _repository.GetById(proposed.GroupingExpenseId);
+                if (grouping is null ||
+                    grouping.UsuarioId != _usuarioLogado.IdContextoDados ||
+                    grouping.Id == command.TargetId)
+                    return McpRejected("GROUPING_RELATIONSHIP_INVALID", "A despesa agrupadora não existe nesta conta ou é inválida.");
+            }
+
+            var updated = await _repository.TryUpdateMcpAsync(
+                command.TargetId,
+                _usuarioLogado.IdContextoDados,
+                expected,
+                proposed,
+                operationId,
+                resultHash,
+                cancellationToken);
+            if (updated is not null)
+                return McpCompleted(updated.Id, operationId, resultHash);
+
+            var current = await _repository.GetById(command.TargetId);
+            return current is null || current.UsuarioId != _usuarioLogado.IdContextoDados
+                ? McpRejected("RECORD_NOT_FOUND", "A despesa não foi encontrada para esta conta.")
+                : McpConflict("A despesa mudou desde a prévia; prepare uma nova.");
+        }
+
+        if (command.Action != Domain.Mcp.Enums.McpPreviewAction.Delete)
+            return McpRejected("PREVIEW_PAYLOAD_INVALID", "A ação MCP de despesa é inválida.");
+
+        var deleted = await _repository.TryDeleteMcpAsync(
+            command.TargetId,
+            _usuarioLogado.IdContextoDados,
+            expected,
+            cancellationToken);
+        if (deleted)
+            return McpCompleted(command.TargetId, operationId, resultHash);
+
+        var observed = await _repository.GetById(command.TargetId);
+        return observed is null
+            ? new McpApplicationMutationResult(
+                McpApplicationMutationState.Unknown,
+                command.TargetId,
+                null,
+                null,
+                "EFFECT_OUTCOME_UNKNOWN",
+                "A despesa está ausente, mas a causalidade da exclusão não pôde ser comprovada.")
+            : McpConflict("A despesa mudou desde a prévia; prepare uma nova.");
+    }
+
+    public async Task<McpApplicationMutationResult> SincronizarAgrupamentoMcpAsync(
+        string groupingExpenseId,
+        decimal expectedParentAmount,
+        decimal baseAmount,
+        string operationId,
+        string resultHash,
+        CancellationToken cancellationToken = default)
+    {
+        var updated = await _repository.TrySynchronizeGroupingMcpAsync(
+            groupingExpenseId,
+            _usuarioLogado.IdContextoDados,
+            expectedParentAmount,
+            baseAmount,
+            operationId,
+            resultHash,
+            cancellationToken);
+        if (updated is not null)
+            return McpCompleted(updated.Id, operationId, resultHash);
+        var current = await _repository.GetById(groupingExpenseId);
+        return current is null || current.UsuarioId != _usuarioLogado.IdContextoDados
+            ? McpRejected("GROUPING_RELATIONSHIP_INVALID", "A despesa agrupadora não foi encontrada para esta conta.")
+            : McpConflict("A despesa agrupadora mudou desde a prévia; prepare uma nova.");
+    }
+
+    private static bool TryMcpSnapshot(
+        IReadOnlyDictionary<string, object?> values,
+        out McpExpenseSnapshot snapshot)
+    {
+        snapshot = default!;
+        if (!int.TryParse(values.GetValueOrDefault("year")?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var year) ||
+            !int.TryParse(values.GetValueOrDefault("month")?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var month) ||
+            !decimal.TryParse(values.GetValueOrDefault("amount")?.ToString(), NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var amount))
+            return false;
+        var description = values.GetValueOrDefault("description")?.ToString() ?? string.Empty;
+        var categoryId = values.GetValueOrDefault("categoryId")?.ToString() ?? string.Empty;
+        if (year < DateTime.UtcNow.Year - 5 ||
+            month is < 1 or > 12 ||
+            amount <= 0 ||
+            string.IsNullOrWhiteSpace(description) ||
+            string.IsNullOrWhiteSpace(categoryId))
+            return false;
+        snapshot = new McpExpenseSnapshot(
+            year,
+            month,
+            description,
+            amount,
+            categoryId,
+            McpText(values, "groupingExpenseId"),
+            McpText(values, "expenseOriginId"),
+            McpBool(values, "isInstallment"),
+            McpBool(values, "isRecurring"),
+            McpNullableInt(values, "installmentNumber"),
+            McpNullableInt(values, "installmentCount"));
+        return true;
+    }
+
+    private static string? McpText(IReadOnlyDictionary<string, object?> values, string key) =>
+        values.GetValueOrDefault(key)?.ToString();
+
+    private static bool McpBool(IReadOnlyDictionary<string, object?> values, string key) =>
+        bool.TryParse(values.GetValueOrDefault(key)?.ToString(), out var value) && value;
+
+    private static int? McpNullableInt(IReadOnlyDictionary<string, object?> values, string key) =>
+        int.TryParse(values.GetValueOrDefault(key)?.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : null;
+
+    private static McpApplicationMutationResult McpCompleted(string id, string operationId, string resultHash) =>
+        new(McpApplicationMutationState.Completed, id, operationId, resultHash, null, null);
+
+    private static McpApplicationMutationResult McpConflict(string message) =>
+        new(McpApplicationMutationState.ConflictChanged, null, null, null, "CONFLICT_CHANGED", message);
+
+    private static McpApplicationMutationResult McpRejected(string code, string message) =>
+        new(McpApplicationMutationState.Rejected, null, null, null, code, message);
 
     private static ResultDespesaDTO ObterDespesaDTO(Despesa despesa, AcumuladoMensalReport? reportAcumulado = null)
     {
@@ -569,3 +733,5 @@ public class DespesaService : IDespesaService
         return clone;
     }
 }
+
+#nullable restore annotations

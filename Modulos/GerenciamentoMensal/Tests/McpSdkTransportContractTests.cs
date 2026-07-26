@@ -69,13 +69,22 @@ public class McpSdkTransportContractTests
                 "finanmap_category_delete_preview",
                 "finanmap_category_impact_get",
                 "finanmap_category_update_preview",
+                "finanmap_expense_create_preview",
+                "finanmap_expense_delete_preview",
+                "finanmap_expense_update_preview",
                 "finanmap_expenses_list",
                 "finanmap_financial_summary_get",
+                "finanmap_fixed_cost_create_preview",
+                "finanmap_fixed_cost_delete_preview",
+                "finanmap_fixed_cost_update_preview",
                 "finanmap_fixed_costs_list",
                 "finanmap_income_create_preview",
                 "finanmap_income_delete_preview",
                 "finanmap_income_update_preview",
                 "finanmap_incomes_list",
+                "finanmap_investment_create_preview",
+                "finanmap_investment_delete_preview",
+                "finanmap_investment_update_preview",
                 "finanmap_investments_list",
                 "finanmap_largest_movements_get",
                 "finanmap_operation_cancel",
@@ -90,7 +99,7 @@ public class McpSdkTransportContractTests
                 tool.Name.Contains("_preview", StringComparison.Ordinal) ||
                 tool.Name.StartsWith("finanmap_operation_", StringComparison.Ordinal))
             .ToDictionary(tool => tool.Name, StringComparer.Ordinal);
-        Assert.Equal(9, writeTools.Count);
+        Assert.Equal(18, writeTools.Count);
         Assert.All(writeTools.Values, tool =>
         {
             Assert.False(tool.ProtocolTool.Annotations?.OpenWorldHint);

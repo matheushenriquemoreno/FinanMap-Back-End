@@ -14,6 +14,7 @@ using WebApi.Controllers;
 using WebApi.Controlles;
 using WebApi.Interceptor;
 using WebApi;
+using WebApi.Mcp;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -67,6 +68,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddOpenApi();
 
 builder.Services.RegistrarDependencias();
+builder.Services.AddMcpFinanceiro(builder.Configuration, builder.Environment);
 
 builder.Services.AddScoped<IUsuarioLogado, UsuarioLogado>();
 builder.Services.AddHostedService<CustoFixoLembreteBackgroundService>();
@@ -98,6 +100,8 @@ var app = builder.Build();
 app.Services.InicializarMongoDB();
 
 app.UseCors();
+app.UseMcpTransportSecurity();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -115,6 +119,10 @@ app.UseHttpsRedirection();
 
 app.MapPublicEndpoints();
 app.MapProtectedEndpoints();
+app.MapMcpApiEndpoints();
+app.MapMcpOAuthEndpoints();
+app.MapMcpOAuthAuthorizeEndpoint();
+app.MapMcpTransport();
 
 app.MapHealthChecks("/healthcheck", new HealthCheckOptions
 {

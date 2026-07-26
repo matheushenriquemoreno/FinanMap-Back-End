@@ -4,6 +4,7 @@ using Domain.Entity;
 using Domain.Login.Interfaces;
 using Domain.Repository;
 using SharedDomain.Exceptions;
+using System.Security.Claims;
 
 namespace WebApi.Interceptor
 {
@@ -41,8 +42,10 @@ namespace WebApi.Interceptor
                     .HttpContext?
                     .User?
                     .Claims?
-                    .Where(x => x.Type == nameof(Usuario.Id))
-                    .FirstOrDefault()
+                    .FirstOrDefault(x =>
+                        x.Type == nameof(Usuario.Id) ||
+                        x.Type == "sub" ||
+                        x.Type == ClaimTypes.NameIdentifier)
                     ?.Value;
 
                 return idUsuarioLogado ?? throw new AutenticacaoNecessariaException("Para acessar essa funcionalidade e necessario autenticação!");

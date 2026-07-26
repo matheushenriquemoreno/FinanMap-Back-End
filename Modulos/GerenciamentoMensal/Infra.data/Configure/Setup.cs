@@ -1,6 +1,7 @@
 using System.Reflection;
 using Application.Email.Interfaces;
 using Application.Login.Interfaces;
+using Application.Mcp.Interfaces;
 using Domain.Repository;
 using Infra.Autenticacao;
 using Infra.Cache.Repository;
@@ -21,7 +22,6 @@ public static class Setup
         services.AddMemoryCache();
 
         services.AddScoped<IServiceJWT, ServiceJWT>();
-
         // Configuração do Resend (HTTP API para envio de e-mails)
         services.AddOptions();
         services.AddHttpClient<ResendClient>();

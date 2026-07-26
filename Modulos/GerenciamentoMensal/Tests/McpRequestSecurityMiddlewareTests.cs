@@ -1,0 +1,127 @@
+using Application.Mcp.Configuration;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using WebApi.Mcp;
+using Xunit;
+
+namespace Tests;
+
+public class McpRequestSecurityMiddlewareTests
+{
+    [Fact]
+    public async Task Invalid_origin_is_rejected_without_calling_transport()
+    {
+        var called = false;
+        var middleware = CreateMiddleware(() => called = true, options =>
+        {
+            options.EndpointEnabled = true;
+            options.AllowedOrigins = ["https://agent.example"];
+        });
+        var context = CreateContext();
+        context.Request.Headers.Origin = "https://evil.example";
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status403Forbidden, context.Response.StatusCode);
+        Assert.False(called);
+    }
+
+    [Fact]
+    public async Task Shared_context_header_is_always_rejected()
+    {
+        var called = false;
+        var middleware = CreateMiddleware(() => called = true, options => options.EndpointEnabled = true);
+        var context = CreateContext();
+        context.Request.Headers["X-Proprietario-Id"] = "owner-b";
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        Assert.False(called);
+    }
+
+    [Fact]
+    public async Task Non_browser_client_may_omit_origin()
+    {
+        var called = false;
+        var middleware = CreateMiddleware(() => called = true, options => options.EndpointEnabled = true);
+        var context = CreateContext();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.True(called);
+    }
+
+    [Fact]
+    public async Task Disabled_endpoint_is_not_exposed()
+    {
+        var called = false;
+        var middleware = CreateMiddleware(() => called = true, _ => { });
+        var context = CreateContext();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status404NotFound, context.Response.StatusCode);
+        Assert.False(called);
+    }
+
+    [Fact]
+    public async Task Authentication_challenge_references_protected_resource_metadata()
+    {
+        var options = new McpFeatureOptions
+        {
+            EndpointEnabled = true,
+            PublicBaseUrl = "https://api.example"
+        };
+        var middleware = new McpRequestSecurityMiddleware(
+            context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            },
+            Options.Create(options),
+            new HostEnvironmentFake());
+        var context = CreateContext();
+
+        await middleware.InvokeAsync(context);
+        await context.Response.StartAsync();
+
+        Assert.Contains(
+            "resource_metadata=\"https://api.example/.well-known/oauth-protected-resource/mcp\"",
+            context.Response.Headers.WWWAuthenticate.ToString());
+    }
+
+    private static McpRequestSecurityMiddleware CreateMiddleware(
+        Action next,
+        Action<McpFeatureOptions> configure)
+    {
+        var options = new McpFeatureOptions();
+        configure(options);
+        return new McpRequestSecurityMiddleware(
+            _ =>
+            {
+                next();
+                return Task.CompletedTask;
+            },
+            Options.Create(options),
+            new HostEnvironmentFake());
+    }
+
+    private static DefaultHttpContext CreateContext()
+    {
+        var context = new DefaultHttpContext();
+        context.Request.Path = "/mcp";
+        context.Request.Scheme = "https";
+        return context;
+    }
+
+    private sealed class HostEnvironmentFake : IHostEnvironment
+    {
+        public string EnvironmentName { get; set; } = Environments.Development;
+        public string ApplicationName { get; set; } = "Tests";
+        public string ContentRootPath { get; set; } = string.Empty;
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } =
+            new Microsoft.Extensions.FileProviders.NullFileProvider();
+    }
+}

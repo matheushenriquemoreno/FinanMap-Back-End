@@ -68,6 +68,10 @@ public static class MongoConfig
 
             return mongoClient;
         });
+        services.AddSingleton<IMongoDatabase>(serviceProvider =>
+            serviceProvider
+                .GetRequiredService<IMongoClient>()
+                .GetDatabase(MongoDBSettings.DataBaseName));
     }
 
     public static void InicializarMongoDB(this IServiceProvider serviceProvider)

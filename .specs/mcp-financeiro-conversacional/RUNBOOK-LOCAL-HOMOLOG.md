@@ -7,7 +7,8 @@ Este runbook sobe MongoDB, API, Prometheus e Grafana exclusivamente no Docker lo
 - Docker Desktop com `docker compose`.
 - .NET SDK 9.
 - PowerShell 7.
-- Portas livres: API `17270`, Prometheus `19090`, Grafana `13000`.
+- Portas livres: API HTTP interna/publicada `17270`, API HTTPS `17271`, Prometheus
+  `19090`, Grafana `13000`.
 
 ## 1. Preparar configuração e certificados
 
@@ -16,6 +17,12 @@ Set-Location 'D:\FinamMap\FinanMap-Back-End\Modulos\GerenciamentoMensal'
 
 Copy-Item '.env.mcp-staging.example' '.env.mcp-staging.local'
 New-Item -ItemType Directory -Path '.mcp-local-secrets'
+
+dotnet dev-certs https `
+  -ep '.mcp-local-secrets\mcp-local-https.pfx' `
+  -p 'SUBSTITUA_SENHA_CERTIFICADO'
+
+dotnet dev-certs https --trust
 
 dotnet dev-certs https `
   -ep '.mcp-local-secrets\mcp-signing.pfx' `
@@ -30,11 +37,14 @@ Edite `.env.mcp-staging.local`, substitua todo `CHANGE_ME` e use:
 
 - `MCP_STAGING_IMAGE=finanmap-mcp-staging:<SHA_LOCAL>`;
 - `SOURCE_REVISION=<SHA_LOCAL>`;
-- `MCP_PUBLIC_BASE_URL=http://127.0.0.1:17270`;
+- `MCP_STAGING_HTTPS_PORT=17271`;
+- `MCP_PUBLIC_BASE_URL=https://localhost:17271`;
+- `JWT_ISSUER=https://localhost:17271`;
+- `HOMOLOG_URL_API=https://localhost:17271/api/`;
 - `MCP_ALLOWED_ORIGINS=http://localhost:9000`;
 - `FRONT_END_URLS=http://localhost:9000`;
 - `MCP_CERTIFICATES_DIR=D:\FinamMap\FinanMap-Back-End\Modulos\GerenciamentoMensal\.mcp-local-secrets`;
-- a mesma senha local nos dois certificados;
+- a mesma senha local nos três certificados;
 - segredos aleatórios distintos para Mongo, JWT, cursor, prévia e Grafana.
 
 O arquivo `.env.mcp-staging.local` e os certificados `*.pfx` são ignorados pelo Git.
@@ -60,8 +70,8 @@ O `up` constrói a imagem por SHA e aguarda todos os healthchecks.
 
 Interfaces locais:
 
-- API: `http://127.0.0.1:17270/healthcheck`
-- métricas: `http://127.0.0.1:17270/metrics`
+- API: `https://localhost:17271/healthcheck`
+- métricas: `https://localhost:17271/metrics`
 - Prometheus: `http://127.0.0.1:19090`
 - Grafana: `http://127.0.0.1:13000`
 

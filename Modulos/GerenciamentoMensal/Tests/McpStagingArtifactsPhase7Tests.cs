@@ -131,6 +131,36 @@ public sealed class McpStagingArtifactsPhase7Tests
             "RUNBOOK-LOCAL-HOMOLOG.md")));
     }
 
+    [Fact]
+    public void Local_mcp_configuration_exposes_only_https_public_urls()
+    {
+        var compose = ReadModuleFile("docker-compose.mcp-staging.yaml");
+        var example = ReadModuleFile(".env.mcp-staging.example");
+        var configScript = ReadModuleFile("scripts", "mcp-local-config.ps1");
+        var healthScript = ReadModuleFile("scripts", "mcp-local-health.ps1");
+        var prometheus = ReadModuleFile("ops", "mcp", "prometheus.yml");
+
+        Assert.Contains("${MCP_STAGING_HTTPS_PORT:-17271}:8443", compose);
+        Assert.Contains("ASPNETCORE_HTTPS_PORTS: 8443", compose);
+        Assert.Contains(
+            "ASPNETCORE_Kestrel__Certificates__Default__Path",
+            compose);
+        Assert.Contains("MCP_HTTPS_CERTIFICATE_PASSWORD", compose);
+        Assert.Contains("MCP_STAGING_HTTPS_PORT=17271", example);
+        Assert.Contains("HOMOLOG_URL_API=https://localhost:17271/api/", example);
+        Assert.Contains("JWT_ISSUER=https://localhost:17271", example);
+        Assert.Contains("MCP_PUBLIC_BASE_URL=https://localhost:17271", example);
+        Assert.DoesNotContain("MCP_PUBLIC_BASE_URL=http://", example);
+        Assert.DoesNotContain("JWT_ISSUER=http://", example);
+        Assert.Contains("MCP_PUBLIC_BASE_URL deve usar https://", configScript);
+        Assert.Contains("mcp-local-https.pfx", configScript);
+        Assert.Contains("MCP_STAGING_HTTPS_PORT", healthScript);
+        Assert.Contains("https://localhost:$apiPort/healthcheck", healthScript);
+        Assert.Contains("scheme: https", prometheus);
+        Assert.Contains("insecure_skip_verify: true", prometheus);
+        Assert.Contains("webapi:8443", prometheus);
+    }
+
     private static string ReadModuleFile(params string[] parts)
     {
         return File.ReadAllText(Path.Combine(new[] { ModuleRoot }.Concat(parts).ToArray()));

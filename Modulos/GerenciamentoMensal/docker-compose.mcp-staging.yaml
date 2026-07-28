@@ -35,9 +35,13 @@ services:
         condition: service_healthy
     ports:
       - "${MCP_STAGING_HTTP_PORT:-17270}:8080"
+      - "${MCP_STAGING_HTTPS_PORT:-17271}:8443"
     environment:
       ASPNETCORE_ENVIRONMENT: Staging
       ASPNETCORE_HTTP_PORTS: 8080
+      ASPNETCORE_HTTPS_PORTS: 8443
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /run/secrets/mcp-local-https.pfx
+      ASPNETCORE_Kestrel__Certificates__Default__Password: ${MCP_HTTPS_CERTIFICATE_PASSWORD:?defina MCP_HTTPS_CERTIFICATE_PASSWORD}
       MONGO_URL: mongodb://${MONGO_ROOT_USERNAME:?defina MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD:?defina MONGO_ROOT_PASSWORD}@mongo:27017/${MONGO_DATABASE:-finanmap_staging}?authSource=admin
       JWT_KEY: ${JWT_KEY:?defina JWT_KEY}
       JWT_ISSUER: ${JWT_ISSUER:?defina JWT_ISSUER}
@@ -72,7 +76,7 @@ services:
       context: ../../FinanMap-Front-End
       dockerfile: Dockerfile.homolog
       args:
-        URL_API: ${HOMOLOG_URL_API:-http://localhost:${MCP_STAGING_HTTP_PORT:-17270}/api/}
+        URL_API: ${HOMOLOG_URL_API:-https://localhost:${MCP_STAGING_HTTPS_PORT:-17271}/api/}
         LOGIN_URL: ${HOMOLOG_LOGIN_URL:-/login}
         MCP_ENABLED: ${MCP_FEATURE_ENABLED:-true}
         MCP_WRITE_TOOLS_ENABLED: ${MCP_WRITE_TOOLS_ENABLED:-false}

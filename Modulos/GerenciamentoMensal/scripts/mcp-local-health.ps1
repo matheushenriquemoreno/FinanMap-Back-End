@@ -13,14 +13,14 @@ Get-Content -LiteralPath $resolvedEnv | ForEach-Object {
     }
 }
 
-$apiPort = if ($values.MCP_STAGING_HTTP_PORT) { $values.MCP_STAGING_HTTP_PORT } else { "17270" }
+$apiPort = if ($values.MCP_STAGING_HTTPS_PORT) { $values.MCP_STAGING_HTTPS_PORT } else { "17271" }
 $prometheusPort = if ($values.PROMETHEUS_PORT) { $values.PROMETHEUS_PORT } else { "19090" }
 $grafanaPort = if ($values.GRAFANA_PORT) { $values.GRAFANA_PORT } else { "13000" }
 
-$api = Invoke-RestMethod "http://127.0.0.1:$apiPort/healthcheck" -TimeoutSec 15
+$api = Invoke-RestMethod "https://localhost:$apiPort/healthcheck" -TimeoutSec 15
 if ($api.status -ne "Healthy") { throw "API não saudável: $($api.status)" }
-Invoke-WebRequest "http://127.0.0.1:$apiPort/metrics" -TimeoutSec 15 | Out-Null
-Invoke-WebRequest "http://127.0.0.1:$prometheusPort/-/ready" -TimeoutSec 15 | Out-Null
+Invoke-WebRequest "https://localhost:$apiPort/metrics" -UseBasicParsing -TimeoutSec 15 | Out-Null
+Invoke-WebRequest "http://127.0.0.1:$prometheusPort/-/ready" -UseBasicParsing -TimeoutSec 15 | Out-Null
 $targets = Invoke-RestMethod "http://127.0.0.1:$prometheusPort/api/v1/targets" -TimeoutSec 15
 if ($targets.data.activeTargets.health -notcontains "up") { throw "Prometheus não está coletando a API." }
 $grafana = Invoke-RestMethod "http://127.0.0.1:$grafanaPort/api/health" -TimeoutSec 15

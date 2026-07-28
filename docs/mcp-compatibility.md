@@ -84,6 +84,10 @@ oficial deve ser configurado no formato específico de cada cliente.
 
 Use `${MCP_PUBLIC_BASE_URL}/mcp` como endpoint MCP.
 
+Em homologação local, `MCP_PUBLIC_BASE_URL` também deve usar HTTPS. O endpoint local
+canônico é `https://localhost:17271/mcp`; a porta HTTP publicada existe apenas para
+healthchecks internos e não deve ser usada na configuração de clientes MCP.
+
 ### Codex
 
 Adicione o servidor ao `config.toml` do Codex:

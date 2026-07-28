@@ -58,12 +58,12 @@ Com um `.env.mcp-staging.local` derivado do exemplo e sem `CHANGE_ME`, execute a
 
 ```powershell
 docker compose --env-file .env.mcp-staging.local -f docker-compose.mcp-staging.yaml up -d --build --wait
-Invoke-RestMethod http://localhost:17270/healthcheck
+Invoke-RestMethod https://localhost:17271/healthcheck
 Start-Process http://localhost:9071/
 ```
 
 O serviço `frontend` só inicia após `webapi` saudável. `HOMOLOG_URL_API` usa
-`http://localhost:17270/api/` porque as chamadas são feitas pelo navegador host;
+`https://localhost:17271/api/` porque as chamadas são feitas pelo navegador host;
 não use `webapi` nessa variável. O healthcheck do frontend é `http://localhost:9071/`.
 Para encerrar sem destruir journals/auditoria: `docker compose --env-file .env.mcp-staging.local -f docker-compose.mcp-staging.yaml down` (não usar `down -v`).
 

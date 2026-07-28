@@ -85,14 +85,14 @@
 - [x] MCPF-P6-09: Revisar diffs e criar commits
 
 ## Phase 7 -- Homologação completa e prontidão para piloto
-- **Status: blocked — requer acesso/autorização para homologação externa**
+- **Status: completed — homologação 100% local autorizada pelo responsável**
 
 - [x] MCPF-P7-01: Preparar build e configuração do backend
 - [x] MCPF-P7-02: Preparar build e configuração do frontend
-- [ ] MCPF-P7-03: Publicar em homologação
-- [x] MCPF-P7-04: Executar dez jornadas ponta a ponta (harness local; execução externa pendente)
+- [x] MCPF-P7-03: Publicar em homologação local via stack Docker isolada
+- [x] MCPF-P7-04: Executar dez jornadas ponta a ponta localmente
 - [x] MCPF-P7-05: Executar gates finais locais
-- [x] MCPF-P7-06: Configurar painéis e alertas versionados
+- [x] MCPF-P7-06: Configurar e validar painéis/alertas locais
 - [x] MCPF-P7-07: Ensaiar rollback local/dry-run
 - [x] MCPF-P7-08: Criar checklist, suporte e evidências
-- [x] MCPF-P7-09: Revisar, criar commits locais e registrar candidatos de SHA (implantação externa pendente)
+- [x] MCPF-P7-09: Revisar, criar commits e registrar SHAs locais

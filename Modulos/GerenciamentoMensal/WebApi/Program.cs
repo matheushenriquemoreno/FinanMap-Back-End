@@ -7,6 +7,7 @@ using Infra.Data.Mongo.Config;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
+using OpenTelemetry.Metrics;
 using Scalar.AspNetCore;
 using WebApi.Configs;
 using WebApi.Configs.ExecptionHandler;
@@ -66,6 +67,11 @@ builder.Services.AddAuthentication(
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddAuthorization();
 builder.Services.AddOpenApi();
+builder.Services
+    .AddOpenTelemetry()
+    .WithMetrics(metrics => metrics
+        .AddMeter(McpTelemetry.MeterName)
+        .AddPrometheusExporter());
 
 builder.Services.RegistrarDependencias();
 builder.Services.AddMcpFinanceiro(builder.Configuration, builder.Environment);
@@ -145,5 +151,6 @@ app.MapHealthChecks("/healthcheck", new HealthCheckOptions
         await context.Response.WriteAsJsonAsync(response);
     }
 });
+app.MapPrometheusScrapingEndpoint();
 
 app.Run();

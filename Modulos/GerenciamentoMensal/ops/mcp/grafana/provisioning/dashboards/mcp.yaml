@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: FinanMap MCP
+    orgId: 1
+    folder: FinanMap
+    type: file
+    disableDeletion: true
+    editable: false
+    options:
+      path: /var/lib/grafana/dashboards

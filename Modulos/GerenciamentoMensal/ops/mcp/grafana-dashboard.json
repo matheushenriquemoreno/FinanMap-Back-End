@@ -1,5 +1,7 @@
 {
   "title": "FinanMap MCP - Operação mínima",
+  "uid": "finanmap-mcp-local",
+  "version": 1,
   "schemaVersion": 39,
   "tags": ["finanmap", "mcp"],
   "panels": [

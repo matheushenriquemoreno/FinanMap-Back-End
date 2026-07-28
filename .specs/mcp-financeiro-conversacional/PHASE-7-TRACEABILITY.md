@@ -2,17 +2,17 @@
 
 ## Resultado honesto
 
-O candidato de release foi preparado e validado em harness local. A publicação em **homologação externa não executada**: esta fase não recebeu credenciais de deploy, DNS, certificados públicos nem autorização para alterar um ambiente remoto. Assim, P7-03 e o registro de SHAs efetivamente implantados permanecem pendentes de execução pelo responsável do ambiente; nenhum resultado local é apresentado como evidência de produção.
+O critério autorizado para esta fase é uma homologação 100% local e isolada. O candidato é validado no Docker local com MongoDB, API, Prometheus e Grafana; nenhuma publicação externa é necessária para o aceite local. A publicação em **homologação externa não executada** continua fora do escopo: nenhum resultado local é apresentado como evidência de produção.
 
 ## Itens da fase
 
 | Item | Evidência |
 | --- | --- |
 | MCPF-P7-01 | `WebApi/Dockerfile` com bases por digest, revisão OCI e healthcheck; `docker-compose.mcp-staging.yaml` separado, Mongo por digest, segredos obrigatórios externos, certificados somente leitura, health de API/Mongo e volume persistente. |
-| MCPF-P7-03 | Harness `scripts/mcp-staging-smoke.ps1`; validação local de compose/build/health. Publicação externa não executada. |
+| MCPF-P7-03 | Harness local completo: Compose com Mongo/API/Prometheus/Grafana e scripts config/up/health/smoke/down. Publicação externa não executada e não exigida pelo critério autorizado. |
 | MCPF-P7-04 | Dez jornadas J01–J10 abaixo, exercitadas por testes automatizados de contrato, integração e E2E. |
 | MCPF-P7-05 | Suíte completa, build Release, importação de 1.000 itens, latência, autorização, auditoria, reconciliação e conformidade. |
-| MCPF-P7-06 | `ops/mcp/prometheus-alerts.yaml` e `grafana-dashboard.json`, alinhados aos instrumentos reais de `McpTelemetry`; correlação limitada a IDs/tags seguros. |
+| MCPF-P7-06 | Exporter `/metrics`, Prometheus com scrape/regras e Grafana com datasource/dashboard provisionados, alinhados aos instrumentos reais de `McpTelemetry`; correlação limitada a IDs/tags seguros. |
 | MCPF-P7-07 | `scripts/mcp-staging-rollback.ps1`: primeiro desabilita writes e endpoint, depois restaura imagem anterior, sem apagar volume, journal ou auditoria. Ensaio local em dry-run. |
 | MCPF-P7-08 | `PHASE-7-PILOT-CHECKLIST.md`, com suporte, limitações, go/no-go e coleta de evidências. |
 
@@ -52,6 +52,15 @@ Inventário verificável: MCP-01 MCP-02 MCP-03 MCP-04 MCP-05 MCP-06 MCP-07 MCP-0
 - A retenção de auditoria e o texto jurídico de processamento por agentes continuam decisões de Produto/Privacidade.
 - Os alertas são configuração versionada; o carregamento em Prometheus/Grafana externo precisa ser comprovado no ambiente.
 
+## Critério de aceite local
+
+- Compose válido com os quatro serviços e imagens externas fixadas por digest.
+- API expõe `/healthcheck` e `/metrics`; Prometheus reporta o target da API como `UP`.
+- Grafana inicia com datasource e dashboard provisionados, sem cadastro anônimo.
+- Scripts PowerShell cobrem configuração, subida, saúde, dez jornadas, latência, rollback e encerramento sem remoção de volume.
+- `RUNBOOK-LOCAL-HOMOLOG.md` é a fonte operacional reproduzível.
+- Deploy externo, DNS e TLS público não pertencem ao aceite local autorizado.
+
 ## Gates executados em 2026-07-28
 
 - RED inicial: 4/4 testes de artefatos falharam pelos arquivos operacionais ausentes.
@@ -62,3 +71,11 @@ Inventário verificável: MCP-01 MCP-02 MCP-03 MCP-04 MCP-05 MCP-06 MCP-07 MCP-0
 - Rollback dry-run: aprovado, com flags desabilitadas antes da troca de imagem e sem remoção de dados.
 - Backend Release: 215/215 testes aprovados; warnings preexistentes, zero falhas.
 - `dotnet format --verify-no-changes` nos arquivos C# da fase e `git diff --check`: aprovados.
+- Ampliação local de observabilidade — RED: teste de contrato falhou pela ausência de exporter, Prometheus, Grafana, scripts e runbook.
+- Ampliação local de observabilidade — GREEN: 5/5 `McpStagingArtifactsPhase7Tests` aprovados.
+- Stack local: Mongo, API, Prometheus e Grafana ficaram `Healthy`; target da API `UP`.
+- Prometheus: 10 regras versionadas carregadas.
+- Grafana: datasource `finanmap-prometheus` e dashboard `FinanMap MCP - Operação mínima` encontrados pela API.
+- Jornadas: J01–J10 aprovadas pelo script `mcp-local-journeys.ps1`.
+- Latência: `LATENCY_OK read_p95<=3s write_p95<=5s`.
+- Encerramento: `LOCAL_DOWN_OK volumes=preserved`; `docker compose ps --all` sem contêineres.

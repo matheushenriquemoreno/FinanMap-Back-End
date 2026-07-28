@@ -11,8 +11,11 @@
 - [x] J01–J10 aprovadas pela suíte automatizada e anexadas à rastreabilidade.
 - [x] Gate de 1.000 itens, P95 leitura e P95 confirmação aprovados pela suíte.
 - [x] Rollback em dry-run aprovado sem remoção de volumes.
+- [x] Prometheus coleta `/metrics` da API com target `UP` e 10 regras carregadas.
+- [x] Grafana carrega datasource `finanmap-prometheus` e dashboard por provisionamento.
+- [x] Runbook local reproduzido do início ao fim; encerramento confirmou zero contêineres e volumes preservados.
 
-## Go/no-go de homologação externa
+## Fora do critério local: homologação externa
 
 - [ ] Credenciais e autorização de deploy recebidas.
 - [ ] DNS e TLS públicos validados.
@@ -22,6 +25,8 @@
 - [ ] Smoke autenticado executado por dois clientes MCP independentes.
 - [ ] Feature flags iniciam com escrita desabilitada até aceite.
 - [ ] Aceite humano do responsável pelo produto registrado.
+
+Os itens externos acima não bloqueiam a homologação 100% local autorizada e não devem ser marcados sem evidência remota.
 
 ## Suporte ao piloto
 

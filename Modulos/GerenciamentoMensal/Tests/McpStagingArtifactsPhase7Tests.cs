@@ -89,6 +89,48 @@ public sealed class McpStagingArtifactsPhase7Tests
         Assert.Contains("homologação externa", traceability, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void Local_homologation_provisions_metrics_dashboard_and_full_lifecycle()
+    {
+        var compose = ReadModuleFile("docker-compose.mcp-staging.yaml");
+        var program = ReadModuleFile("WebApi", "Program.cs");
+        var project = ReadModuleFile("WebApi", "WebApi.csproj");
+
+        Assert.Contains("prometheus:", compose, StringComparison.Ordinal);
+        Assert.Contains("grafana:", compose, StringComparison.Ordinal);
+        Assert.Contains("profiles: [\"observability\"]", compose, StringComparison.Ordinal);
+        Assert.Contains("prometheus.yml", compose, StringComparison.Ordinal);
+        Assert.Contains("provisioning", compose, StringComparison.Ordinal);
+        Assert.Contains("MapPrometheusScrapingEndpoint", program, StringComparison.Ordinal);
+        Assert.Contains(
+            "OpenTelemetry.Exporter.Prometheus.AspNetCore",
+            project,
+            StringComparison.Ordinal);
+
+        var scripts = new[]
+        {
+            "mcp-local-config.ps1",
+            "mcp-local-up.ps1",
+            "mcp-local-health.ps1",
+            "mcp-local-journeys.ps1",
+            "mcp-local-latency.ps1",
+            "mcp-staging-rollback.ps1",
+            "mcp-local-down.ps1"
+        };
+        foreach (var script in scripts)
+        {
+            Assert.True(
+                File.Exists(Path.Combine(ModuleRoot, "scripts", script)),
+                $"Script obrigatório ausente: {script}");
+        }
+
+        Assert.True(File.Exists(Path.Combine(
+            RepositoryRoot,
+            ".specs",
+            "mcp-financeiro-conversacional",
+            "RUNBOOK-LOCAL-HOMOLOG.md")));
+    }
+
     private static string ReadModuleFile(params string[] parts)
     {
         return File.ReadAllText(Path.Combine(new[] { ModuleRoot }.Concat(parts).ToArray()));

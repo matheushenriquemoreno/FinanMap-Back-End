@@ -3,8 +3,8 @@
 ## Go/no-go técnico local
 
 - [x] Suite backend completa aprovada (215/215, Release, 2026-07-28).
-- [ ] Suite frontend completa aprovada.
-- [ ] Build Release backend e build imutável frontend aprovados.
+- [x] Suite frontend completa aprovada (89/89, lint, `vue-tsc`, build e `test:phase7`).
+- [x] Build Release backend e build imutável frontend aprovados localmente.
 - [x] `docker compose config --quiet` aprovado com segredos efêmeros.
 - [x] Imagem backend construída com `SOURCE_REVISION` igual ao SHA candidato local `f05d77f`.
 - [x] Health runtime local de Mongo/API saudável; journal/reconciliador cobertos pelos testes de readiness da Fase 6.

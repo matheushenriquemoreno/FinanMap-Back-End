@@ -52,6 +52,21 @@ Inventário verificável: MCP-01 MCP-02 MCP-03 MCP-04 MCP-05 MCP-06 MCP-07 MCP-0
 - A retenção de auditoria e o texto jurídico de processamento por agentes continuam decisões de Produto/Privacidade.
 - Os alertas são configuração versionada; o carregamento em Prometheus/Grafana externo precisa ser comprovado no ambiente.
 
+## Execução local integrada no Docker Desktop
+
+Com um `.env.mcp-staging.local` derivado do exemplo e sem `CHANGE_ME`, execute a partir de `Modulos/GerenciamentoMensal`:
+
+```powershell
+docker compose --env-file .env.mcp-staging.local -f docker-compose.mcp-staging.yaml up -d --build --wait
+Invoke-RestMethod http://localhost:17270/healthcheck
+Start-Process http://localhost:9071/
+```
+
+O serviço `frontend` só inicia após `webapi` saudável. `HOMOLOG_URL_API` usa
+`http://localhost:17270/api/` porque as chamadas são feitas pelo navegador host;
+não use `webapi` nessa variável. O healthcheck do frontend é `http://localhost:9071/`.
+Para encerrar sem destruir journals/auditoria: `docker compose --env-file .env.mcp-staging.local -f docker-compose.mcp-staging.yaml down` (não usar `down -v`).
+
 ## Critério de aceite local
 
 - Compose válido com os quatro serviços e imagens externas fixadas por digest.

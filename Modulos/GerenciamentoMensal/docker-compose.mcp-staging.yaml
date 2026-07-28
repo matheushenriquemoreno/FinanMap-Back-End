@@ -66,6 +66,36 @@ services:
       - mcp_data
       - mcp_edge
 
+  frontend:
+    image: ${MCP_FRONTEND_IMAGE:-finanmap-mcp-frontend-staging:local}
+    build:
+      context: ../../FinanMap-Front-End
+      dockerfile: Dockerfile.homolog
+      args:
+        URL_API: ${HOMOLOG_URL_API:-http://localhost:${MCP_STAGING_HTTP_PORT:-17270}/api/}
+        LOGIN_URL: ${HOMOLOG_LOGIN_URL:-/login}
+        MCP_ENABLED: ${MCP_FEATURE_ENABLED:-true}
+        MCP_WRITE_TOOLS_ENABLED: ${MCP_WRITE_TOOLS_ENABLED:-false}
+    depends_on:
+      webapi:
+        condition: service_healthy
+    ports:
+      - "${MCP_FRONTEND_HTTP_PORT:-9071}:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    networks:
+      - mcp_edge
+
   prometheus:
     image: prom/prometheus@sha256:3c42b892cf723fa54d2f262c37a0e1f80aa8c8ddb1da7b9b0df9455a35a7f893
     profiles: ["observability"]

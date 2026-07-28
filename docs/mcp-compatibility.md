@@ -77,6 +77,52 @@ O cliente precisa implementar Streamable HTTP da revisão `2025-11-25`, descober
 Authorization Code, PKCE `S256` e bearer token no cabeçalho. Clientes de navegador enviam
 `Origin`; clientes nativos podem omiti-lo. O servidor não oferece o transporte SSE legado.
 
+## Configuração de clientes
+
+Não existe um único arquivo de configuração aceito por todos os clientes MCP. O endpoint
+oficial deve ser configurado no formato específico de cada cliente.
+
+Use `${MCP_PUBLIC_BASE_URL}/mcp` como endpoint MCP.
+
+### Codex
+
+Adicione o servidor ao `config.toml` do Codex:
+
+```toml
+[mcp_servers.finanmap]
+url = "${MCP_PUBLIC_BASE_URL}/mcp"
+auth = "oauth"
+```
+
+Depois de salvar e reiniciar o cliente quando solicitado, autentique a conexão pela ação de
+autenticação do Codex ou pelo comando:
+
+```powershell
+codex mcp login finanmap
+```
+
+### Claude Code
+
+Para adicionar pela CLI:
+
+```powershell
+claude mcp add --transport http finanmap ${MCP_PUBLIC_BASE_URL}/mcp
+```
+
+Se o Claude marcar o servidor como `Needs authentication`, use `/mcp` no Claude Code para
+concluir o OAuth no navegador.
+
+Para configuração via JSON, o campo `type` é obrigatório:
+
+```json
+{
+  "type": "http",
+  "url": "${MCP_PUBLIC_BASE_URL}/mcp"
+}
+```
+
+Uma entrada JSON com `url` mas sem `type` não é um contrato válido para o Claude Code.
+
 ## Política de atualização
 
 Versões preview, release candidate e a linha `2.x` do SDK não entram na V1. Uma atualização

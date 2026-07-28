@@ -1,0 +1,13 @@
+{
+  "title": "FinanMap MCP - Operação mínima",
+  "schemaVersion": 39,
+  "tags": ["finanmap", "mcp"],
+  "panels": [
+    { "title": "Latência P95 (ms)", "type": "timeseries", "targets": [{ "expr": "histogram_quantile(0.95, sum by (le, operation_class) (rate(mcp_tool_duration_ms_bucket[15m])))" }] },
+    { "title": "Erros e journals", "type": "timeseries", "targets": [{ "expr": "rate(mcp_tool_calls_total{outcome=\"error\"}[10m])" }, { "expr": "increase(mcp_journal_write_failure_total[5m])" }] },
+    { "title": "Replay e autorização", "type": "timeseries", "targets": [{ "expr": "rate(mcp_confirmation_replay_total[10m])" }, { "expr": "rate(mcp_auth_denied_total[10m])" }] },
+    { "title": "Importação", "type": "timeseries", "targets": [{ "expr": "rate(mcp_tool_calls_total{operation_class=\"import\",outcome=\"error\"}[10m])" }] },
+    { "title": "Reconciliação", "type": "stat", "targets": [{ "expr": "mcp_unknown_operations_total" }, { "expr": "mcp_expired_leases_total" }] },
+    { "title": "Isolamento", "type": "stat", "targets": [{ "expr": "mcp_auth_denied_total{reason=\"cross_account\"}" }] }
+  ]
+}

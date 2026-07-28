@@ -1,0 +1,33 @@
+groups:
+  - name: finanmap-mcp-minimum
+    rules:
+      - alert: McpCrossAccountDenial
+        expr: increase(mcp_auth_denied_total{reason="cross_account"}[5m]) > 0
+        labels: { severity: sev0 }
+      - alert: McpJournalFailure
+        expr: increase(mcp_journal_write_failure_total[5m]) > 0
+        labels: { severity: sev1 }
+      - alert: McpSystemErrorRatio
+        expr: sum(rate(mcp_tool_calls_total{outcome="error"}[10m])) / clamp_min(sum(rate(mcp_tool_calls_total[10m])), 1) > 0.01
+        labels: { severity: sev1 }
+      - alert: McpReadP95High
+        expr: histogram_quantile(0.95, sum by (le) (rate(mcp_tool_duration_ms_bucket{operation_class="read"}[15m]))) > 3000
+        labels: { severity: sev2 }
+      - alert: McpWriteP95High
+        expr: histogram_quantile(0.95, sum by (le) (rate(mcp_tool_duration_ms_bucket{operation_class="write"}[15m]))) > 5000
+        labels: { severity: sev1 }
+      - alert: McpReplayRatioHigh
+        expr: sum(rate(mcp_confirmation_replay_total[10m])) / clamp_min(sum(rate(mcp_tool_calls_total[10m])), 1) > 0.05
+        labels: { severity: sev2 }
+      - alert: McpAuthorizationDeniedSpike
+        expr: sum(rate(mcp_auth_denied_total[10m])) > 3 * sum(rate(mcp_auth_denied_total[1h] offset 1h))
+        labels: { severity: sev1 }
+      - alert: McpImportFailureRatio
+        expr: sum(rate(mcp_tool_calls_total{operation_class="import",outcome="error"}[10m])) / clamp_min(sum(rate(mcp_tool_calls_total{operation_class="import"}[10m])), 1) > 0.10
+        labels: { severity: sev1 }
+      - alert: McpUnknownOperation
+        expr: increase(mcp_unknown_operations_total[5m]) > 0
+        labels: { severity: sev1 }
+      - alert: McpExpiredLease
+        expr: increase(mcp_expired_leases_total[2m]) > 0
+        labels: { severity: sev1 }

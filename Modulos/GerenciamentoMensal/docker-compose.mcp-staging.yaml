@@ -1,0 +1,75 @@
+name: finanmap-mcp-staging
+
+services:
+  mongo:
+    image: mongo@sha256:e0ce8c35124d4a9f9785532d1f268f39e9728ffa1cb38f46fa482436424c4bd3
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-finanmap_staging}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?defina MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?defina MONGO_ROOT_PASSWORD}
+    volumes:
+      - mcp_staging_mongo:/data/db
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mongosh --quiet --username "$$MONGO_INITDB_ROOT_USERNAME" --password "$$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval "db.adminCommand('ping').ok" | grep 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - mcp_data
+
+  webapi:
+    image: ${MCP_STAGING_IMAGE:?defina MCP_STAGING_IMAGE com tag imutavel}
+    build:
+      context: .
+      dockerfile: WebApi/Dockerfile
+      args:
+        BUILD_CONFIGURATION: Release
+        SOURCE_REVISION: ${SOURCE_REVISION:?defina SOURCE_REVISION}
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    ports:
+      - "${MCP_STAGING_HTTP_PORT:-17270}:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Staging
+      ASPNETCORE_HTTP_PORTS: 8080
+      MONGO_URL: mongodb://${MONGO_ROOT_USERNAME:?defina MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD:?defina MONGO_ROOT_PASSWORD}@mongo:27017/${MONGO_DATABASE:-finanmap_staging}?authSource=admin
+      JWT_KEY: ${JWT_KEY:?defina JWT_KEY}
+      JWT_ISSUER: ${JWT_ISSUER:?defina JWT_ISSUER}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?defina JWT_AUDIENCE}
+      FRONT_END_URLS: ${FRONT_END_URLS:?defina FRONT_END_URLS}
+      MCP_FEATURE_ENABLED: ${MCP_FEATURE_ENABLED:-true}
+      MCP_WRITE_TOOLS_ENABLED: ${MCP_WRITE_TOOLS_ENABLED:-false}
+      MCP_HISTORY_ENABLED: ${MCP_HISTORY_ENABLED:-true}
+      MCP_PUBLIC_BASE_URL: ${MCP_PUBLIC_BASE_URL:?defina MCP_PUBLIC_BASE_URL}
+      MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:?defina MCP_ALLOWED_ORIGINS}
+      MCP_CURSOR_SIGNING_KEY: ${MCP_CURSOR_SIGNING_KEY:?defina MCP_CURSOR_SIGNING_KEY}
+      MCP_PREVIEW_ENCRYPTION_KEY: ${MCP_PREVIEW_ENCRYPTION_KEY:?defina MCP_PREVIEW_ENCRYPTION_KEY}
+      MCP_SIGNING_CERTIFICATE_PATH: /run/secrets/mcp-signing.pfx
+      MCP_SIGNING_CERTIFICATE_PASSWORD: ${MCP_SIGNING_CERTIFICATE_PASSWORD:?defina MCP_SIGNING_CERTIFICATE_PASSWORD}
+      MCP_ENCRYPTION_CERTIFICATE_PATH: /run/secrets/mcp-encryption.pfx
+      MCP_ENCRYPTION_CERTIFICATE_PASSWORD: ${MCP_ENCRYPTION_CERTIFICATE_PASSWORD:?defina MCP_ENCRYPTION_CERTIFICATE_PASSWORD}
+    volumes:
+      - ${MCP_CERTIFICATES_DIR:?defina MCP_CERTIFICATES_DIR}:/run/secrets:ro
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+    networks:
+      - mcp_data
+      - mcp_edge
+
+volumes:
+  mcp_staging_mongo:
+
+networks:
+  mcp_data:
+    internal: true
+  mcp_edge:

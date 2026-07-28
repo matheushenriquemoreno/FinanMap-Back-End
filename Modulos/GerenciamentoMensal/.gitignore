@@ -5,6 +5,7 @@
 
 # dotenv files
 .env
+.env.mcp-staging.local
 .publish/
 # User-specific files
 *.rsuser

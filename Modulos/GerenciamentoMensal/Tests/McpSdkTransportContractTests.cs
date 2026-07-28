@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,6 +33,11 @@ public class McpSdkTransportContractTests
                 "finanmap_periods_compare"
             },
             names);
+        Assert.All(tools, tool =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(tool.ProtocolTool.Title));
+            Assert.False(string.IsNullOrWhiteSpace(tool.ProtocolTool.Description));
+        });
         Assert.All(tools, tool =>
         {
             Assert.True(tool.ProtocolTool.Annotations?.ReadOnlyHint);
@@ -135,7 +142,7 @@ public class McpSdkTransportContractTests
 
         var importConfirm = writeTools["finanmap_import_confirm"];
         Assert.False(importConfirm.ProtocolTool.Annotations?.ReadOnlyHint);
-        Assert.True(importConfirm.ProtocolTool.Annotations?.DestructiveHint);
+        Assert.False(importConfirm.ProtocolTool.Annotations?.DestructiveHint);
         Assert.Contains(
             "\"IMPORT_VALID_ITEMS\"",
             importConfirm.ProtocolTool.InputSchema.ToString());
@@ -147,6 +154,35 @@ public class McpSdkTransportContractTests
         var status = writeTools["finanmap_operation_status_get"];
         Assert.True(status.ProtocolTool.Annotations?.ReadOnlyHint);
         Assert.False(status.ProtocolTool.Annotations?.DestructiveHint);
+    }
+
+    [Fact]
+    public void Transport_endpoint_requires_the_dedicated_rate_limit_policy()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Environment.EnvironmentName = "Development";
+        builder.Services.AddMcpFinanceiro(
+            builder.Configuration,
+            builder.Environment);
+        using var app = builder.Build();
+
+        app.MapMcpTransport();
+
+        var mcpEndpoints = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Where(endpoint => string.Equals(
+                endpoint.RoutePattern.RawText?.Trim('/'),
+                "mcp",
+                StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        Assert.NotEmpty(mcpEndpoints);
+        Assert.All(mcpEndpoints, endpoint =>
+        {
+            var limiter = endpoint.Metadata.GetMetadata<EnableRateLimitingAttribute>();
+            Assert.NotNull(limiter);
+            Assert.Equal("mcp-transport", limiter.PolicyName);
+        });
     }
 
     private static async Task<IList<McpClientTool>> DiscoverToolsAsync(

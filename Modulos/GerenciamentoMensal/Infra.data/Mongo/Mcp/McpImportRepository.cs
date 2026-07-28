@@ -132,4 +132,43 @@ public sealed class McpImportRepository : IMcpImportRepository
             cancellationToken: cancellationToken);
         return result.ModifiedCount == 1;
     }
+
+    public async Task<IReadOnlyList<McpImportBatch>> ListDueProcessingBatchesAsync(
+        DateTime nowUtc,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        var filter = Builders<McpImportBatch>.Filter;
+        return await _batches.Find(
+                filter.Eq(item => item.State, Domain.Mcp.Enums.McpImportBatchState.Processing) &
+                (filter.Eq(item => item.ProcessingLeaseUntilUtc, null) |
+                 filter.Lte(item => item.ProcessingLeaseUntilUtc, nowUtc)))
+            .SortBy(item => item.CreatedAtUtc)
+            .Limit(Math.Clamp(limit, 1, 200))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<McpImportBatch?> TryAcquireProcessingLeaseAsync(
+        McpImportBatch batch,
+        string leaseOwner,
+        DateTime nowUtc,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken = default)
+    {
+        var expectedVersion = batch.Version;
+        if (!batch.TryAcquireProcessingLease(
+                leaseOwner,
+                nowUtc,
+                leaseDuration))
+        {
+            return null;
+        }
+
+        var replaced = await ReplaceBatchAsync(
+            batch,
+            batch.UserId,
+            expectedVersion,
+            cancellationToken);
+        return replaced ? batch : null;
+    }
 }

@@ -1048,7 +1048,7 @@ public sealed class McpWriteService
     {
         var invocation = await StartOperationInvocationAuditAsync(
             context,
-            "finanmap_operation_status",
+            "finanmap_operation_status_get",
             McpOperationClass.Read,
             "status",
             !string.IsNullOrWhiteSpace(input.OperationId),

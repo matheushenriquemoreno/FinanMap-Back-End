@@ -19,6 +19,31 @@ public abstract class RepositoryTransacaoBase<T> : RepositoryMongoBase<T>, IRepo
         return await ObterPeloMesFilter(mes, ano, usuarioId);
     }
 
+    public async Task<IEnumerable<T>> ObterPorPeriodo(
+        DateOnly from,
+        DateOnly to,
+        string usuarioId,
+        CancellationToken cancellationToken = default)
+    {
+        var filters = Builders<T>.Filter;
+        var lowerBound = filters.Gt(item => item.Ano, from.Year) |
+                         (filters.Eq(item => item.Ano, from.Year) &
+                          filters.Gte(item => item.Mes, from.Month));
+        var upperBound = filters.Lt(item => item.Ano, to.Year) |
+                         (filters.Eq(item => item.Ano, to.Year) &
+                          filters.Lte(item => item.Mes, to.Month));
+        var transactions = await _entityCollection.Find(
+                filters.Eq(item => item.UsuarioId, usuarioId) &
+                lowerBound &
+                upperBound)
+            .SortByDescending(item => item.Ano)
+            .ThenByDescending(item => item.Mes)
+            .ThenByDescending(item => item.Valor)
+            .ToListAsync(cancellationToken);
+        await IncluirDependenciasEmLote(transactions);
+        return transactions;
+    }
+
     public async Task<IEnumerable<T>> ObterPeloMesFilter(int mes, int ano, string usuarioId, List<FilterDefinition<T>> filtros = null)
     {
         var filterDefinition = Builders<T>.Filter;
@@ -40,10 +65,7 @@ public abstract class RepositoryTransacaoBase<T> : RepositoryMongoBase<T>, IRepo
             .SortByDescending(x => x.Valor)
             .ToListAsync();
 
-        foreach (var despesa in transacoes)
-        {
-            await IncluirDependencias(despesa);
-        }
+        await IncluirDependenciasEmLote(transacoes);
 
         return transacoes;
     }
@@ -63,5 +85,24 @@ public abstract class RepositoryTransacaoBase<T> : RepositoryMongoBase<T>, IRepo
         var categoria = await _categoryRepository.GetById(transacao.CategoriaId);
 
         transacao.Categoria = categoria;
+    }
+
+    private async Task IncluirDependenciasEmLote(IReadOnlyCollection<T> transactions)
+    {
+        var categoryIds = transactions
+            .Select(item => item.CategoriaId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (categoryIds.Count == 0)
+            return;
+
+        var categories = await _categoryRepository.GetByIds(categoryIds);
+        var byId = categories.ToDictionary(item => item.Id, StringComparer.Ordinal);
+        foreach (var transaction in transactions)
+        {
+            transaction.Categoria = byId.GetValueOrDefault(
+                transaction.CategoriaId);
+        }
     }
 }

@@ -72,15 +72,17 @@
 - [x] MCPF-P5-10: Revisar diffs e criar commits
 
 ## Phase 6 -- Segurança, observabilidade, desempenho e UX de produção
-- [ ] MCPF-P6-01: Concluir hardening de autorização e transporte
-- [ ] MCPF-P6-02: Revisar schemas e classificação das ferramentas
-- [ ] MCPF-P6-03: Adicionar métricas, logs e alertas
-- [ ] MCPF-P6-04: Criar índices e otimizar desempenho
-- [ ] MCPF-P6-05: Finalizar estados e histórico no frontend
-- [ ] MCPF-P6-06: Validar acessibilidade e responsividade
-- [ ] MCPF-P6-07: Executar conformidade com dois clientes
-- [ ] MCPF-P6-08: Executar segurança, resiliência e regressão
-- [ ] MCPF-P6-09: Revisar diffs e criar commits
+**Status: completed**
+
+- [x] MCPF-P6-01: Concluir hardening de autorização e transporte
+- [x] MCPF-P6-02: Revisar schemas e classificação das ferramentas
+- [x] MCPF-P6-03: Adicionar métricas, logs e alertas
+- [x] MCPF-P6-04: Criar índices e otimizar desempenho
+- [x] MCPF-P6-05: Finalizar estados e histórico no frontend
+- [x] MCPF-P6-06: Validar acessibilidade e responsividade
+- [x] MCPF-P6-07: Executar conformidade com dois clientes
+- [x] MCPF-P6-08: Executar segurança, resiliência e regressão
+- [x] MCPF-P6-09: Revisar diffs e criar commits
 
 ## Phase 7 -- Homologação completa e prontidão para piloto
 - [ ] MCPF-P7-01: Preparar build e configuração do backend

@@ -190,7 +190,8 @@ public sealed class McpImportServicePhase5Tests
                 StringComparison.Ordinal);
         });
 
-        var confirmed = await service.ConfirmAsync(
+        var confirmed = await ConfirmAndProcessAsync(
+            service,
             Context,
             result.Data.BatchId,
             result.Data.PayloadHash,
@@ -232,6 +233,109 @@ public sealed class McpImportServicePhase5Tests
         Assert.Equal(1, result.Data.Counts.Skipped);
         Assert.Contains(result.Data.Guidance, item =>
             item.Contains("import_anyway", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task MCP_118_confirmation_returns_processing_before_slow_effect_and_worker_finishes_durably()
+    {
+        var repository = new ImportRepositoryFake();
+        var gateway = new DomainGatewayFake
+        {
+            ExecutionGate = new TaskCompletionSource(
+                TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var service = CreateService(repository, gateway);
+        var preview = await service.PrepareAsync(
+            Context,
+            "request-async-confirm",
+            [Expense("slow-item", "10.00")],
+            CancellationToken.None);
+
+        var confirmation = await service.ConfirmAsync(
+                Context,
+                preview.Data!.BatchId,
+                preview.Data.PayloadHash,
+                McpImportConfirmationDecision.IMPORT_VALID_ITEMS,
+                CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(1));
+
+        Assert.Equal("processing", confirmation.Status);
+        Assert.Empty(gateway.ExecutedCommands);
+
+        var processing = service.ProcessDueBatchesAsync(
+            10,
+            CancellationToken.None);
+        await gateway.ExecutionStarted.Task.WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.False(processing.IsCompleted);
+        gateway.ExecutionGate.SetResult();
+        await processing.WaitAsync(TimeSpan.FromSeconds(1));
+
+        var completed = await service.GetStatusAsync(
+            Context,
+            preview.Data.BatchId,
+            CancellationToken.None);
+        Assert.Equal("completed", completed.Status);
+        Assert.Single(gateway.ExecutedCommands);
+    }
+
+    [Fact]
+    public async Task MCP_118_latency_runner_keeps_read_p95_below_3s_and_confirmation_p95_below_5s()
+    {
+        var repository = new ImportRepositoryFake();
+        var service = CreateService(repository);
+        var readPreview = await service.PrepareAsync(
+            Context,
+            "latency-read",
+            [Expense("latency-read-item", "10.00")],
+            CancellationToken.None);
+        var writePreviews = new Queue<McpImportPreviewData>();
+        for (var index = 0; index < 25; index++)
+        {
+            var preview = await service.PrepareAsync(
+                Context,
+                $"latency-write-{index}",
+                [Expense($"latency-write-item-{index}", "10.00")],
+                CancellationToken.None);
+            writePreviews.Enqueue(preview.Data!);
+        }
+
+        var read = await McpLatencyGateRunner.MeasureAsync(
+            "import_status_read",
+            warmupCount: 2,
+            sampleCount: 25,
+            async cancellationToken =>
+            {
+                _ = await service.GetStatusAsync(
+                    Context,
+                    readPreview.Data!.BatchId,
+                    cancellationToken);
+            });
+        var write = await McpLatencyGateRunner.MeasureAsync(
+            "import_confirmation_acceptance",
+            warmupCount: 0,
+            sampleCount: 25,
+            async cancellationToken =>
+            {
+                var preview = writePreviews.Dequeue();
+                var accepted = await service.ConfirmAsync(
+                    Context,
+                    preview.BatchId,
+                    preview.PayloadHash,
+                    McpImportConfirmationDecision.IMPORT_VALID_ITEMS,
+                    cancellationToken);
+                Assert.Equal("processing", accepted.Status);
+            });
+
+        Assert.True(
+            read.P95Milliseconds <= 3_000,
+            $"Read P95 {read.P95Milliseconds:0.###} ms excedeu 3000 ms.");
+        Assert.True(
+            write.P95Milliseconds <= 5_000,
+            $"Write P95 {write.P95Milliseconds:0.###} ms excedeu 5000 ms.");
+        Assert.True(read.P50Milliseconds <= read.P95Milliseconds);
+        Assert.True(read.P95Milliseconds <= read.P99Milliseconds);
+        Assert.True(write.P50Milliseconds <= write.P95Milliseconds);
+        Assert.True(write.P95Milliseconds <= write.P99Milliseconds);
     }
 
     [Fact]
@@ -312,7 +416,8 @@ public sealed class McpImportServicePhase5Tests
             item.Contains("new-category", StringComparison.Ordinal));
         Assert.Equal(1, result.Data.Counts.Pending);
 
-        var confirmed = await service.ConfirmAsync(
+        var confirmed = await ConfirmAndProcessAsync(
+            service,
             Context,
             result.Data.BatchId,
             result.Data.PayloadHash,
@@ -401,7 +506,8 @@ public sealed class McpImportServicePhase5Tests
             [Expense("valid", "10.00"), invalid],
             CancellationToken.None);
 
-        var first = await service.ConfirmAsync(
+        var first = await ConfirmAndProcessAsync(
+            service,
             Context,
             preview.Data!.BatchId,
             preview.Data.PayloadHash,
@@ -472,7 +578,8 @@ public sealed class McpImportServicePhase5Tests
             [Expense("unknown", "10.00")],
             CancellationToken.None);
 
-        var confirmed = await service.ConfirmAsync(
+        var confirmed = await ConfirmAndProcessAsync(
+            service,
             Context,
             preview.Data!.BatchId,
             preview.Data.PayloadHash,
@@ -519,7 +626,8 @@ public sealed class McpImportServicePhase5Tests
             [Expense("journal-cas", "10.00")],
             CancellationToken.None);
 
-        var confirmed = await service.ConfirmAsync(
+        var confirmed = await ConfirmAndProcessAsync(
+            service,
             Context,
             preview.Data!.BatchId,
             preview.Data.PayloadHash,
@@ -564,7 +672,8 @@ public sealed class McpImportServicePhase5Tests
             [Expense("item-cas", "10.00")],
             CancellationToken.None);
 
-        var confirmed = await service.ConfirmAsync(
+        var confirmed = await ConfirmAndProcessAsync(
+            service,
             Context,
             preview.Data!.BatchId,
             preview.Data.PayloadHash,
@@ -593,7 +702,8 @@ public sealed class McpImportServicePhase5Tests
             "request-original",
             [invalid, Expense("completed-row", "10.00")],
             CancellationToken.None);
-        await service.ConfirmAsync(
+        await ConfirmAndProcessAsync(
+            service,
             Context,
             original.Data!.BatchId,
             original.Data.PayloadHash,
@@ -609,7 +719,8 @@ public sealed class McpImportServicePhase5Tests
                 Expense("completed-row", "10.00")
             ],
             CancellationToken.None);
-        var corrected = await service.ConfirmAsync(
+        var corrected = await ConfirmAndProcessAsync(
+            service,
             Context,
             correction.Data!.BatchId,
             correction.Data.PayloadHash,
@@ -647,7 +758,8 @@ public sealed class McpImportServicePhase5Tests
             [Expense("domain-failure", "10.00")],
             CancellationToken.None);
 
-        var result = await service.ConfirmAsync(
+        var result = await ConfirmAndProcessAsync(
+            service,
             Context,
             preview.Data!.BatchId,
             preview.Data.PayloadHash,
@@ -719,10 +831,10 @@ public sealed class McpImportServicePhase5Tests
             journal.ToolName == "finanmap_import_preview" &&
             journal.State == Domain.Mcp.Enums.McpOperationState.Completed);
         Assert.Contains(invocations, journal =>
-            journal.ToolName == "finanmap_import_status" &&
+            journal.ToolName == "finanmap_import_status_get" &&
             journal.State == Domain.Mcp.Enums.McpOperationState.Completed);
         Assert.Contains(invocations, journal =>
-            journal.ToolName == "finanmap_import_correction" &&
+            journal.ToolName == "finanmap_import_correction_preview" &&
             journal.State == Domain.Mcp.Enums.McpOperationState.Rejected);
         Assert.Contains(invocations, journal =>
             journal.ToolName == "finanmap_import_confirm" &&
@@ -756,6 +868,29 @@ public sealed class McpImportServicePhase5Tests
             new McpPreviewPayloadProtector(RandomNumberGenerator.GetBytes(32)),
             TimeProvider.System,
             categories ?? new CategoryResolverFake());
+
+    private static async Task<McpToolEnvelope<McpImportStatusData>>
+        ConfirmAndProcessAsync(
+            McpImportService service,
+            McpCallContext context,
+            string batchId,
+            string payloadHash,
+            McpImportConfirmationDecision decision,
+            CancellationToken cancellationToken)
+    {
+        var accepted = await service.ConfirmAsync(
+            context,
+            batchId,
+            payloadHash,
+            decision,
+            cancellationToken);
+        if (accepted.Status == "processing")
+            await service.ProcessDueBatchesAsync(10, cancellationToken);
+        return await service.GetStatusAsync(
+            context,
+            batchId,
+            cancellationToken);
+    }
 
     private static McpImportItemInput Expense(
         string clientItemId,
@@ -831,6 +966,9 @@ public sealed class McpImportServicePhase5Tests
         public List<McpWriteCommand> ExecutedCommands { get; } = [];
         public List<DuplicateCheck> DuplicateChecks { get; } = [];
         public Action? BeforeEffect { get; set; }
+        public TaskCompletionSource? ExecutionGate { get; set; }
+        public TaskCompletionSource ExecutionStarted { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool LegacyDuplicate { get; set; }
         public McpDomainEffect ExecuteEffect { get; set; } =
             McpDomainEffect.Completed(
@@ -849,7 +987,7 @@ public sealed class McpImportServicePhase5Tests
                 command.Values,
                 []));
 
-        public Task<McpDomainEffect> ExecuteAsync(
+        public async Task<McpDomainEffect> ExecuteAsync(
             string userId,
             McpWriteCommand command,
             string operationId,
@@ -857,8 +995,11 @@ public sealed class McpImportServicePhase5Tests
             CancellationToken cancellationToken = default)
         {
             BeforeEffect?.Invoke();
+            ExecutionStarted.TrySetResult();
+            if (ExecutionGate is not null)
+                await ExecutionGate.Task.WaitAsync(cancellationToken);
             ExecutedCommands.Add(command);
-            return Task.FromResult(ExecuteEffect);
+            return ExecuteEffect;
         }
 
         public Task<McpDomainEffect?> FindEffectAsync(
@@ -887,6 +1028,8 @@ public sealed class McpImportServicePhase5Tests
         public bool FailCompletedItemReplaceOnce { get; set; }
         public int ReplaceItemCalls { get; private set; }
         private readonly List<McpImportItem> _items = [];
+        private readonly Dictionary<string, McpImportBatch> _batches =
+            new(StringComparer.Ordinal);
 
         public Task<McpImportBatchCreateResult> CreateOrGetBatchAsync(
             McpImportBatch batch,
@@ -894,6 +1037,7 @@ public sealed class McpImportServicePhase5Tests
         {
             CreateBatchCalls++;
             Batch = batch;
+            _batches[batch.Id] = batch;
             return Task.FromResult(new McpImportBatchCreateResult(batch, true));
         }
 
@@ -912,12 +1056,12 @@ public sealed class McpImportServicePhase5Tests
             string userId,
             string connectionId,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(Batch is not null &&
-                            Batch.Id == batchId &&
-                            Batch.UserId == userId &&
-                            Batch.ConnectionId == connectionId
-                ? Batch
-                : null);
+            Task.FromResult(
+                _batches.TryGetValue(batchId, out var batch) &&
+                batch.UserId == userId &&
+                batch.ConnectionId == connectionId
+                    ? batch
+                    : null);
 
         public Task<McpImportItem?> GetOwnedItemAsync(
             string batchId,
@@ -968,6 +1112,34 @@ public sealed class McpImportServicePhase5Tests
             }
             return Task.FromResult(true);
         }
+
+        public Task<IReadOnlyList<McpImportBatch>> ListDueProcessingBatchesAsync(
+            DateTime nowUtc,
+            int limit,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<McpImportBatch>>(
+                _batches.Values
+                    .Where(batch =>
+                        batch.State ==
+                        Domain.Mcp.Enums.McpImportBatchState.Processing &&
+                        (batch.ProcessingLeaseUntilUtc is null ||
+                         batch.ProcessingLeaseUntilUtc <= nowUtc))
+                    .Take(limit)
+                    .ToArray());
+
+        public Task<McpImportBatch?> TryAcquireProcessingLeaseAsync(
+            McpImportBatch batch,
+            string leaseOwner,
+            DateTime nowUtc,
+            TimeSpan leaseDuration,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(
+                batch.TryAcquireProcessingLease(
+                    leaseOwner,
+                    nowUtc,
+                    leaseDuration)
+                    ? batch
+                    : null);
     }
 
     private sealed class ConfirmationRepositoryFake

@@ -228,7 +228,10 @@ public sealed class McpImportService(
             return RejectedStatus(context, "PREVIEW_EXPIRED", "A prévia expirou; prepare uma nova.");
 
         var batchVersion = batch.Version;
-        batch.StartProcessing();
+        batch.StartProcessing(
+            context.CorrelationId,
+            context.ProtocolRevision,
+            context.ClientId);
         if (!await _imports.ReplaceBatchAsync(
                 batch,
                 context.UserId,
@@ -238,6 +241,55 @@ public sealed class McpImportService(
             return RejectedStatus(context, "PERSISTENCE_CONFLICT", "O lote já está sendo processado.");
         }
 
+        return StatusEnvelope(context, batch, existingItems);
+    }
+
+    public async Task<int> ProcessDueBatchesAsync(
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        var now = _time.GetUtcNow().UtcDateTime;
+        var due = await _imports.ListDueProcessingBatchesAsync(
+            now,
+            Math.Clamp(limit, 1, 200),
+            cancellationToken);
+        var processed = 0;
+        foreach (var candidate in due)
+        {
+            var leaseOwner = $"import-worker:{Guid.NewGuid():N}";
+            var batch = await _imports.TryAcquireProcessingLeaseAsync(
+                candidate,
+                leaseOwner,
+                now,
+                TimeSpan.FromMinutes(2),
+                cancellationToken);
+            if (batch is null)
+                continue;
+
+            await ProcessClaimedBatchAsync(batch, cancellationToken);
+            processed++;
+        }
+        return processed;
+    }
+
+    private async Task ProcessClaimedBatchAsync(
+        McpImportBatch batch,
+        CancellationToken cancellationToken)
+    {
+        var context = new McpCallContext(
+            batch.UserId,
+            batch.ConnectionId,
+            string.IsNullOrWhiteSpace(batch.ConfirmationCorrelationId)
+                ? $"import-worker:{batch.Id}"
+                : batch.ConfirmationCorrelationId,
+            string.IsNullOrWhiteSpace(batch.ConfirmationProtocolRevision)
+                ? "2025-11-25"
+                : batch.ConfirmationProtocolRevision,
+            batch.ConfirmationClientId);
+        var existingItems = await _imports.ListOwnedItemsAsync(
+            batch.Id,
+            batch.UserId,
+            cancellationToken);
         var ordered = existingItems
             .OrderBy(item => item.Type == McpImportItemType.Category ? 0 : 1)
             .ThenBy(item => item.CreatedAtUtc)
@@ -278,7 +330,7 @@ public sealed class McpImportService(
                 ? McpImportBatchState.Partial
                 : McpImportBatchState.Failed
             : McpImportBatchState.Completed;
-        batchVersion = batch.Version;
+        var batchVersion = batch.Version;
         batch.Finish(finalState, counts, batch.Totals, _time.GetUtcNow().UtcDateTime);
         if (!await _imports.ReplaceBatchAsync(
                 batch,
@@ -286,13 +338,8 @@ public sealed class McpImportService(
                 batchVersion,
                 cancellationToken))
         {
-            return RejectedStatus(
-                context,
-                "PERSISTENCE_PENDING",
-                "Os itens foram processados, mas o resumo final ainda precisa ser reconciliado.");
+            return;
         }
-
-        return StatusEnvelope(context, batch, refreshed);
     }
 
     public Task<McpToolEnvelope<McpImportStatusData>> GetStatusAsync(
@@ -301,7 +348,7 @@ public sealed class McpImportService(
         CancellationToken cancellationToken) =>
         AuditInvocationAsync(
             context,
-            "finanmap_import_status",
+            "finanmap_import_status_get",
             McpOperationClass.Import,
             new Dictionary<string, object?>
             {
@@ -354,7 +401,7 @@ public sealed class McpImportService(
         CancellationToken cancellationToken) =>
         AuditInvocationAsync(
             context,
-            "finanmap_import_correction",
+            "finanmap_import_correction_preview",
             McpOperationClass.Preview,
             new Dictionary<string, object?>
             {

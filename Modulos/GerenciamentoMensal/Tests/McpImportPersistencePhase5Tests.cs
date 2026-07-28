@@ -86,6 +86,38 @@ public sealed class McpImportPersistencePhase5UnitTests
         Assert.Equal(now.AddMinutes(2), batch.FinishedAtUtc);
         Assert.Equal(3, batch.Version);
     }
+
+    [Fact]
+    public void Expired_processing_lease_can_be_reacquired_but_live_lease_cannot()
+    {
+        var now = new DateTime(2026, 7, 28, 12, 0, 0, DateTimeKind.Utc);
+        var batch = McpImportBatch.Create(
+            "owner-a",
+            "connection-a",
+            "lease-batch",
+            null,
+            now);
+        batch.MarkPrepared(
+            new Dictionary<string, int>(),
+            new Dictionary<string, decimal>());
+        batch.StartProcessing("correlation-a", "2025-11-25", "client-a");
+
+        Assert.True(batch.TryAcquireProcessingLease(
+            "worker-a",
+            now,
+            TimeSpan.FromMinutes(1)));
+        Assert.False(batch.TryAcquireProcessingLease(
+            "worker-b",
+            now.AddSeconds(30),
+            TimeSpan.FromMinutes(1)));
+        Assert.True(batch.TryAcquireProcessingLease(
+            "worker-b",
+            now.AddMinutes(2),
+            TimeSpan.FromMinutes(1)));
+        Assert.Equal("worker-b", batch.ProcessingLeaseOwner);
+        Assert.Equal("correlation-a", batch.ConfirmationCorrelationId);
+        Assert.Equal("client-a", batch.ConfirmationClientId);
+    }
 }
 
 [Collection(McpMongoCollection.Name)]

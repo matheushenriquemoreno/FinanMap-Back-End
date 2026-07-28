@@ -11,7 +11,9 @@ public static class McpTransportEndpoints
     {
         app.UseWhen(
             context => context.Request.Path.StartsWithSegments("/mcp"),
-            branch => branch.UseMiddleware<McpRequestSecurityMiddleware>());
+            branch => branch
+                .UseCors("mcp")
+                .UseMiddleware<McpRequestSecurityMiddleware>());
     }
 
     public static void MapMcpTransport(this WebApplication app)
@@ -30,6 +32,7 @@ public static class McpTransportEndpoints
         }).AllowAnonymous();
 
         app.MapMcp("/mcp")
+            .RequireRateLimiting("mcp-transport")
             .RequireAuthorization(new AuthorizeAttribute
             {
                 AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme,

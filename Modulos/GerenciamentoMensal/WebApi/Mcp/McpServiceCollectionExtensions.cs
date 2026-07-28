@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -43,6 +44,7 @@ public static class McpServiceCollectionExtensions
         var mcpAudience = $"{publicBaseUrl.TrimEnd('/')}/mcp";
 
         services.AddSingleton<IConfigureOptions<McpFeatureOptions>, McpFeatureOptionsConfigurator>();
+        services.AddSingleton<McpTelemetry>();
         services.AddScoped<McpConnectionService>();
         services.AddScoped<IMcpAuthorizationGrantStore, OpenIddictAuthorizationGrantStore>();
         services.AddScoped<IMcpConnectionValidator>(
@@ -79,10 +81,13 @@ public static class McpServiceCollectionExtensions
                 McpOperationJournalRepository>();
             services.AddScoped<IMcpWriteDomainGateway, McpWriteDomainGateway>();
             services.AddScoped<McpWriteService>();
-            services.AddScoped<IMcpImportService, McpImportService>();
+            services.AddScoped<McpImportService>();
+            services.AddScoped<IMcpImportService>(
+                provider => provider.GetRequiredService<McpImportService>());
             services.AddScoped<IMcpImportCategoryResolver, McpImportCategoryResolver>();
             services.AddScoped<McpOperationReconciler>();
             services.AddHostedService<McpOperationReconciliationWorker>();
+            services.AddHostedService<McpImportProcessingWorker>();
         }
         services.AddLogging(logging =>
             logging.AddFilter("OpenIddict", LogLevel.Warning));
@@ -93,6 +98,45 @@ public static class McpServiceCollectionExtensions
                 options.Stateless = true;
             })
             .AddAuthorizationFilters()
+            .WithRequestFilters(filters =>
+                filters.AddCallToolFilter(next => async (request, cancellationToken) =>
+                {
+                    var telemetry = request.Services?
+                        .GetRequiredService<McpTelemetry>() ??
+                        throw new InvalidOperationException(
+                            "Telemetria MCP indisponível.");
+                    var startedAt = Stopwatch.GetTimestamp();
+                    var operationClass = ToolOperationClass(request.Params?.Name);
+                    telemetry.TrackConfirmationAttempt(
+                        request.Params?.Name,
+                        request.Params?.Arguments);
+                    try
+                    {
+                        var result = await next(request, cancellationToken);
+                        telemetry.RecordToolCall(
+                            operationClass,
+                            result.IsError == true ? "error" : "success",
+                            Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
+                        return result;
+                    }
+                    catch (McpJournalUnavailableException)
+                    {
+                        telemetry.RecordJournalWriteFailure();
+                        telemetry.RecordToolCall(
+                            operationClass,
+                            "error",
+                            Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
+                        throw;
+                    }
+                    catch
+                    {
+                        telemetry.RecordToolCall(
+                            operationClass,
+                            "error",
+                            Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
+                        throw;
+                    }
+                }))
             .WithTools<McpCategoriesTool>()
             .WithTools<McpFinancialTools>();
         if (writeToolsEnabled)
@@ -265,11 +309,83 @@ public static class McpServiceCollectionExtensions
                         QueueLimit = 0,
                         AutoReplenishment = true
                     }));
+            options.AddPolicy("mcp-transport", context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    ResolveRateLimitPartition(context),
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 120,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                        AutoReplenishment = true
+                    }));
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.OnRejected = async (rejected, cancellationToken) =>
+            {
+                rejected.HttpContext.Response.Headers.RetryAfter = "60";
+                rejected.HttpContext.RequestServices
+                    .GetRequiredService<McpTelemetry>()
+                    .RecordRateLimited();
+                await rejected.HttpContext.Response.WriteAsJsonAsync(
+                    new
+                    {
+                        code = "LIMIT_EXCEEDED",
+                        message = "O limite de solicitações MCP foi atingido.",
+                        guidance = "Aguarde antes de tentar novamente e divida lotes grandes em solicitações menores."
+                    },
+                    cancellationToken);
+            };
+        });
+        var allowedOrigins =
+            (Environment.GetEnvironmentVariable("MCP_ALLOWED_ORIGINS") ??
+             configuration["MCP_ALLOWED_ORIGINS"] ??
+             configuration[$"{McpFeatureOptions.SectionName}:AllowedOrigins"])
+            ?.Split(
+                [';', ','],
+                StringSplitOptions.TrimEntries |
+                StringSplitOptions.RemoveEmptyEntries) ?? [];
+        services.AddCors(options =>
+        {
+            options.AddPolicy("mcp", policy =>
+            {
+                if (allowedOrigins.Length > 0)
+                    policy.WithOrigins(allowedOrigins);
+                policy.AllowAnyHeader().AllowAnyMethod();
+            });
         });
 
         services.AddHealthChecks().AddCheck<McpHealthCheck>("mcp");
         return services;
+    }
+
+    private static string ResolveRateLimitPartition(HttpContext context)
+    {
+        var authorization = context.Request.Headers.Authorization.FirstOrDefault();
+        var source = string.IsNullOrWhiteSpace(authorization)
+            ? context.Connection.RemoteIpAddress?.ToString() ?? "unknown"
+            : authorization;
+        return Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(source)))[..24];
+    }
+
+    private static string ToolOperationClass(string? toolName)
+    {
+        if (toolName?.StartsWith(
+                "finanmap_import_",
+                StringComparison.Ordinal) == true)
+        {
+            return "import";
+        }
+        if (toolName?.Contains(
+                "_preview",
+                StringComparison.Ordinal) == true ||
+            toolName?.StartsWith(
+                "finanmap_operation_",
+                StringComparison.Ordinal) == true)
+        {
+            return "write";
+        }
+        return "read";
     }
 
     private static bool IsEndpointEnabled(IConfiguration configuration)

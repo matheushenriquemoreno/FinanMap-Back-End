@@ -369,7 +369,7 @@ public sealed class McpWriteServicePhase3Tests
         var invocationAudits = journals.Items
             .Where(item => item.ToolName is
                 "finanmap_operation_cancel" or
-                "finanmap_operation_status")
+                "finanmap_operation_status_get")
             .ToArray();
         Assert.Equal(6, invocationAudits.Length);
         Assert.Equal(
@@ -381,7 +381,7 @@ public sealed class McpWriteServicePhase3Tests
         Assert.Equal(
             [McpOperationState.Rejected, McpOperationState.Rejected, McpOperationState.Completed],
             invocationAudits
-                .Where(item => item.ToolName == "finanmap_operation_status")
+                .Where(item => item.ToolName == "finanmap_operation_status_get")
                 .Select(item => item.State)
                 .ToArray());
         var statusAuditJson = System.Text.Json.JsonSerializer.Serialize(

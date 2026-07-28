@@ -87,6 +87,18 @@ public sealed class McpMapping : IMongoMapping
                     .Ascending(item => item.UserId)
                     .Descending(item => item.StartedAtUtc)),
             new CreateIndexModel<McpOperationJournal>(
+                Builders<McpOperationJournal>.IndexKeys
+                    .Ascending(item => item.UserId)
+                    .Ascending(item => item.OperationClass)
+                    .Descending(item => item.StartedAtUtc)
+                    .Descending(item => item.Id)),
+            new CreateIndexModel<McpOperationJournal>(
+                Builders<McpOperationJournal>.IndexKeys
+                    .Ascending(item => item.UserId)
+                    .Ascending(item => item.State)
+                    .Descending(item => item.StartedAtUtc)
+                    .Descending(item => item.Id)),
+            new CreateIndexModel<McpOperationJournal>(
                 Builders<McpOperationJournal>.IndexKeys.Ascending(item => item.CorrelationId)),
             new CreateIndexModel<McpOperationJournal>(
                 Builders<McpOperationJournal>.IndexKeys
@@ -187,6 +199,7 @@ public sealed class McpMapping : IMongoMapping
             new CreateIndexModel<McpImportBatch>(
                 Builders<McpImportBatch>.IndexKeys
                     .Ascending(item => item.State)
+                    .Ascending(item => item.ProcessingLeaseUntilUtc)
                     .Ascending(item => item.CreatedAtUtc)),
             new CreateIndexModel<McpImportBatch>(
                 Builders<McpImportBatch>.IndexKeys
@@ -209,6 +222,10 @@ public sealed class McpMapping : IMongoMapping
                 Builders<McpImportItem>.IndexKeys
                     .Ascending(item => item.BatchId)
                     .Ascending(item => item.ValidationState)),
+            new CreateIndexModel<McpImportItem>(
+                Builders<McpImportItem>.IndexKeys
+                    .Ascending(item => item.BatchId)
+                    .Ascending(item => item.ExecutionState)),
             new CreateIndexModel<McpImportItem>(
                 Builders<McpImportItem>.IndexKeys
                     .Ascending(item => item.UserId)

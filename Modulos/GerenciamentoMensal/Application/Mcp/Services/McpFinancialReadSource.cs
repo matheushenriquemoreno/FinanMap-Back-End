@@ -22,28 +22,22 @@ public sealed class McpFinancialReadSource(
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
-        var result = new List<McpFinancialSourceRecord>();
-        foreach (var month in EnumerateMonths(from, to))
+        cancellationToken.ThrowIfCancellationRequested();
+        var records = kind switch
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var records = kind switch
-            {
-                McpFinancialKind.Income =>
-                    (await incomes.ObterPeloMes(month.Month, month.Year, userId))
-                    .Select(item => Map(item, kind, userId)),
-                McpFinancialKind.Expense =>
-                    (await expenses.ObterPeloMes(month.Month, month.Year, userId))
-                    .Where(item => string.IsNullOrWhiteSpace(item.IdDespesaAgrupadora))
-                    .Select(item => Map(item, kind, userId)),
-                McpFinancialKind.Investment =>
-                    (await investments.ObterPeloMes(month.Month, month.Year, userId))
-                    .Select(item => Map(item, kind, userId)),
-                _ => throw new ArgumentOutOfRangeException(nameof(kind))
-            };
-            result.AddRange(records);
-        }
-
-        return result;
+            McpFinancialKind.Income =>
+                (await incomes.ObterPorPeriodo(from, to, userId, cancellationToken))
+                .Select(item => Map(item, kind, userId)),
+            McpFinancialKind.Expense =>
+                (await expenses.ObterPorPeriodo(from, to, userId, cancellationToken))
+                .Where(item => string.IsNullOrWhiteSpace(item.IdDespesaAgrupadora))
+                .Select(item => Map(item, kind, userId)),
+            McpFinancialKind.Investment =>
+                (await investments.ObterPorPeriodo(from, to, userId, cancellationToken))
+                .Select(item => Map(item, kind, userId)),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        };
+        return records.ToArray();
     }
 
     private static McpFinancialSourceRecord Map(
@@ -69,19 +63,26 @@ public sealed class McpFinancialReadSource(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         var records = await fixedCosts.GetByUsuarioId(userId);
+        var categoryIds = records
+            .Select(record => record.CategoriaId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .Cast<string>()
+            .ToList();
+        var categoryById = (await categories.GetByIds(categoryIds))
+            .Where(category => category.UsuarioId == userId)
+            .ToDictionary(category => category.Id, StringComparer.Ordinal);
         var result = new List<McpFixedCostSourceRecord>(records.Count);
         foreach (var record in records)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var category = string.IsNullOrWhiteSpace(record.CategoriaId)
                 ? null
-                : await categories.GetById(record.CategoriaId);
-            var categoryName = category?.UsuarioId == userId
-                ? category.Nome
-                : string.Empty;
-            var categoryId = category?.UsuarioId == userId
-                ? record.CategoriaId ?? string.Empty
-                : string.Empty;
+                : categoryById.GetValueOrDefault(record.CategoriaId);
+            var categoryName = category?.Nome ?? string.Empty;
+            var categoryId = category is null
+                ? string.Empty
+                : record.CategoriaId ?? string.Empty;
             result.Add(new McpFixedCostSourceRecord(
                 record.Id,
                 record.Nome,
@@ -94,14 +95,4 @@ public sealed class McpFinancialReadSource(
         return result;
     }
 
-    private static IEnumerable<DateOnly> EnumerateMonths(DateOnly from, DateOnly to)
-    {
-        var current = new DateOnly(from.Year, from.Month, 1);
-        var last = new DateOnly(to.Year, to.Month, 1);
-        while (current <= last)
-        {
-            yield return current;
-            current = current.AddMonths(1);
-        }
-    }
 }

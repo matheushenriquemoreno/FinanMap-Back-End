@@ -1,6 +1,7 @@
 using Application.Mcp.Configuration;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using WebApi.Mcp;
 using Xunit;
@@ -81,7 +82,9 @@ public class McpRequestSecurityMiddlewareTests
                 return Task.CompletedTask;
             },
             Options.Create(options),
-            new HostEnvironmentFake());
+            new HostEnvironmentFake(),
+            new McpTelemetry(),
+            NullLogger<McpRequestSecurityMiddleware>.Instance);
         var context = CreateContext();
 
         await middleware.InvokeAsync(context);
@@ -109,6 +112,27 @@ public class McpRequestSecurityMiddlewareTests
         Assert.False(called);
     }
 
+    [Theory]
+    [InlineData("application/jsonp")]
+    [InlineData("application/json-seq")]
+    [InlineData("text/json")]
+    public async Task Transport_rejects_non_json_media_types_without_prefix_matching(
+        string contentType)
+    {
+        var called = false;
+        var middleware = CreateMiddleware(
+            () => called = true,
+            options => options.EndpointEnabled = true);
+        var context = CreateContext();
+        context.Request.Method = HttpMethods.Post;
+        context.Request.ContentType = contentType;
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status415UnsupportedMediaType, context.Response.StatusCode);
+        Assert.False(called);
+    }
+
     [Fact]
     public async Task Transport_rejects_unbounded_body_before_the_mcp_handler()
     {
@@ -128,6 +152,24 @@ public class McpRequestSecurityMiddlewareTests
         Assert.False(called);
     }
 
+    [Fact]
+    public async Task Transport_propagates_a_bounded_correlation_id_on_every_response()
+    {
+        var middleware = CreateMiddleware(
+            () => { },
+            options => options.EndpointEnabled = true);
+        var context = CreateContext();
+        context.Request.Headers["X-Correlation-Id"] = new string('x', 200);
+
+        await middleware.InvokeAsync(context);
+        await context.Response.StartAsync();
+
+        var correlationId = context.Response.Headers["X-Correlation-Id"].ToString();
+        Assert.False(string.IsNullOrWhiteSpace(correlationId));
+        Assert.InRange(correlationId.Length, 1, 128);
+        Assert.Equal(correlationId, context.TraceIdentifier);
+    }
+
     private static McpRequestSecurityMiddleware CreateMiddleware(
         Action next,
         Action<McpFeatureOptions> configure)
@@ -141,7 +183,9 @@ public class McpRequestSecurityMiddlewareTests
                 return Task.CompletedTask;
             },
             Options.Create(options),
-            new HostEnvironmentFake());
+            new HostEnvironmentFake(),
+            new McpTelemetry(),
+            NullLogger<McpRequestSecurityMiddleware>.Instance);
     }
 
     private static DefaultHttpContext CreateContext()

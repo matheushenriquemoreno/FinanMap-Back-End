@@ -35,7 +35,7 @@ public sealed class McpImportTools(
         Name = "finanmap_import_confirm",
         Title = "Confirmar itens válidos da importação",
         ReadOnly = false,
-        Destructive = true,
+        Destructive = false,
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true,

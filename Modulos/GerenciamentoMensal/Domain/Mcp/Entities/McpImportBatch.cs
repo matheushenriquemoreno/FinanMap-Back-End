@@ -21,6 +21,11 @@ public sealed class McpImportBatch : EntityBase
     public DateTime ExpiresAtUtc { get; private set; }
     public DateTime PurgeAtUtc { get; private set; }
     public DateTime? FinishedAtUtc { get; private set; }
+    public string ConfirmationCorrelationId { get; private set; } = string.Empty;
+    public string ConfirmationProtocolRevision { get; private set; } = string.Empty;
+    public string ConfirmationClientId { get; private set; } = string.Empty;
+    public string? ProcessingLeaseOwner { get; private set; }
+    public DateTime? ProcessingLeaseUntilUtc { get; private set; }
     public int Version { get; private set; }
 
     private McpImportBatch()
@@ -71,13 +76,43 @@ public sealed class McpImportBatch : EntityBase
         Version++;
     }
 
-    public void StartProcessing()
+    public void StartProcessing(
+        string correlationId = "",
+        string protocolRevision = "",
+        string clientId = "")
     {
         if (State != McpImportBatchState.Prepared)
             throw new InvalidOperationException("O lote não está preparado.");
 
         State = McpImportBatchState.Processing;
+        ConfirmationCorrelationId = correlationId;
+        ConfirmationProtocolRevision = protocolRevision;
+        ConfirmationClientId = clientId;
         Version++;
+    }
+
+    public bool TryAcquireProcessingLease(
+        string leaseOwner,
+        DateTime nowUtc,
+        TimeSpan leaseDuration)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(leaseOwner);
+        if (leaseDuration <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(leaseDuration));
+        if (State != McpImportBatchState.Processing ||
+            (ProcessingLeaseUntilUtc > nowUtc &&
+             !string.Equals(
+                 ProcessingLeaseOwner,
+                 leaseOwner,
+                 StringComparison.Ordinal)))
+        {
+            return false;
+        }
+
+        ProcessingLeaseOwner = leaseOwner;
+        ProcessingLeaseUntilUtc = nowUtc.Add(leaseDuration);
+        Version++;
+        return true;
     }
 
     public void Finish(
@@ -104,6 +139,8 @@ public sealed class McpImportBatch : EntityBase
         Totals = new Dictionary<string, decimal>(totals);
         State = finalState;
         FinishedAtUtc = finishedAtUtc;
+        ProcessingLeaseOwner = null;
+        ProcessingLeaseUntilUtc = null;
         Version++;
     }
 

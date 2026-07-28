@@ -5,7 +5,8 @@ namespace WebApi.Mcp;
 public sealed class McpOperationReconciliationWorker(
     IServiceScopeFactory scopeFactory,
     TimeProvider timeProvider,
-    ILogger<McpOperationReconciliationWorker> logger) : BackgroundService
+    ILogger<McpOperationReconciliationWorker> logger,
+    McpTelemetry telemetry) : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(30);
     private const int BatchSize = 50;
@@ -27,6 +28,7 @@ public sealed class McpOperationReconciliationWorker(
             var result = await reconciler.ReconcileDueAsync(
                 BatchSize,
                 cancellationToken);
+            telemetry.RecordReconciliation(result);
             if (result.Scanned > 0)
             {
                 logger.LogInformation(
@@ -36,6 +38,15 @@ public sealed class McpOperationReconciliationWorker(
                     result.Rejected,
                     result.Unknown,
                     result.Skipped);
+                logger.LogWarning(
+                    "MCP_ALERT_EXPIRED_LEASES: {Scanned} operações vencidas foram classificadas pelo reconciliador; payload omitido.",
+                    result.Scanned);
+            }
+            if (result.Unknown > 0)
+            {
+                logger.LogError(
+                    "MCP_ALERT_UNKNOWN_OPERATIONS: {Unknown} operações permaneceram com resultado desconhecido; retry automático bloqueado e payload omitido.",
+                    result.Unknown);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

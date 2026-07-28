@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Security.Claims;
@@ -28,6 +29,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ModelContextProtocol.Client;
 using MongoDB.Driver;
 using SharedDomain;
 using WebApi.Mcp;
@@ -281,6 +283,132 @@ public sealed class McpAuthenticatedInspectorSmokeTests(McpMongoFixture mongo)
                 oauthB.AccessToken,
                 oauthB.RefreshToken),
             "O canário detectou material OAuth secreto da matriz A/B em logs habilitados.");
+    }
+
+    [Fact]
+    public async Task Official_dotnet_sdk_and_inspector_cli_are_two_independent_authenticated_clients()
+    {
+        var baseUrl = $"http://127.0.0.1:{AllocateLoopbackPort()}";
+        var ownerId = $"two-clients-owner-{Guid.NewGuid():N}";
+        var logs = new OAuthLogCanary();
+        var calls = new FixtureToolCallTracker();
+        await using var host = await StartOwnerHostAsync(
+            mongo.ConnectionString, baseUrl, ownerId, logs, calls);
+        using var oauthClient = new HttpClient(
+            new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            BaseAddress = new Uri(baseUrl)
+        };
+        var oauth = await AuthorizeOwnerAsync(oauthClient, baseUrl, "two-clients");
+
+        using var sdkHttpClient = new HttpClient
+        {
+            BaseAddress = new Uri(baseUrl)
+        };
+        sdkHttpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", oauth.AccessToken);
+        var transport = new HttpClientTransport(
+            new HttpClientTransportOptions
+            {
+                Endpoint = new Uri($"{baseUrl}/mcp"),
+                TransportMode = HttpTransportMode.StreamableHttp
+            },
+            sdkHttpClient,
+            loggerFactory: null,
+            ownsHttpClient: false);
+        await using var sdkClient = await McpClient.CreateAsync(
+            transport,
+            new McpClientOptions { ProtocolVersion = "2025-11-25" });
+
+        var sdkResult = await sdkClient.CallToolAsync(
+            "finanmap_categories_list",
+            new Dictionary<string, object?>());
+        var inspectorResult = await RunInspectorAsync(
+            $"{baseUrl}/mcp",
+            oauth.AccessToken,
+            "finanmap_categories_list",
+            new Dictionary<string, string>());
+
+        Assert.NotEqual(true, sdkResult.IsError);
+        Assert.Contains(
+            "Categoria fixture",
+            JsonSerializer.Serialize(sdkResult));
+        Assert.True(inspectorResult.ExitCode == 0, inspectorResult.Output);
+        Assert.Contains("Categoria fixture", inspectorResult.Output);
+        Assert.True(
+            calls.Calls.Count(
+                call => call.UserId == ownerId && call.Domain == "categories") >= 2,
+            "Os dois clientes devem alcançar a ferramenta autenticada.");
+    }
+
+    [Fact]
+    public async Task Issued_bearer_cannot_call_tool_immediately_after_http_connection_revocation()
+    {
+        var baseUrl = $"http://127.0.0.1:{AllocateLoopbackPort()}";
+        var ownerId = $"revocation-owner-{Guid.NewGuid():N}";
+        var logs = new OAuthLogCanary();
+        var calls = new FixtureToolCallTracker();
+        await using var host = await StartOwnerHostAsync(
+            mongo.ConnectionString, baseUrl, ownerId, logs, calls);
+        using var client = new HttpClient(
+            new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            BaseAddress = new Uri(baseUrl)
+        };
+        var oauth = await AuthorizeOwnerAsync(client, baseUrl, "revocation");
+
+        using var connectionsResponse = await client.GetAsync("/api/mcp/connections");
+        connectionsResponse.EnsureSuccessStatusCode();
+        using var connectionsJson = JsonDocument.Parse(
+            await connectionsResponse.Content.ReadAsStringAsync());
+        var connectionId = connectionsJson.RootElement
+            .GetProperty("items")[0]
+            .GetProperty("id")
+            .GetString()!;
+
+        using var validRequest = CreateToolCallRequest(oauth.AccessToken);
+        using var validResponse = await client.SendAsync(validRequest);
+        Assert.NotEqual(HttpStatusCode.Unauthorized, validResponse.StatusCode);
+        var callsBeforeRevocation = calls.Calls.Count;
+
+        using var revokeResponse = await client.PostAsJsonAsync(
+            $"/api/mcp/connections/{connectionId}/revoke",
+            new { reasonCode = "security_test" });
+        Assert.True(
+            revokeResponse.IsSuccessStatusCode,
+            await revokeResponse.Content.ReadAsStringAsync());
+
+        using var revokedRequest = CreateToolCallRequest(oauth.AccessToken);
+        using var revokedResponse = await client.SendAsync(revokedRequest);
+        var revokedBody = await revokedResponse.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, revokedResponse.StatusCode);
+        Assert.Contains("\"status\":\"rejected\"", revokedBody);
+        Assert.Contains("AUTH_CONNECTION_INACTIVE", revokedBody);
+        Assert.Equal(callsBeforeRevocation, calls.Calls.Count);
+    }
+
+    private static HttpRequestMessage CreateToolCallRequest(string accessToken)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/mcp")
+        {
+            Content = JsonContent.Create(new
+            {
+                jsonrpc = "2.0",
+                id = 1,
+                method = "tools/call",
+                @params = new
+                {
+                    name = "finanmap_categories_list",
+                    arguments = new { }
+                }
+            })
+        };
+        request.Headers.Authorization =
+            new AuthenticationHeaderValue("Bearer", accessToken);
+        request.Headers.Accept.ParseAdd("application/json");
+        request.Headers.Accept.ParseAdd("text/event-stream");
+        return request;
     }
 
     private static async Task<WebApplication> StartOwnerHostAsync(

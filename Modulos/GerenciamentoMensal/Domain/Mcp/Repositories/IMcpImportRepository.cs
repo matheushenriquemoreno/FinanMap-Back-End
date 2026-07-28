@@ -52,4 +52,18 @@ public interface IMcpImportRepository
         string userId,
         int expectedVersion,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<McpImportBatch>> ListDueProcessingBatchesAsync(
+        DateTime nowUtc,
+        int limit,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<McpImportBatch>>([]);
+
+    Task<McpImportBatch?> TryAcquireProcessingLeaseAsync(
+        McpImportBatch batch,
+        string leaseOwner,
+        DateTime nowUtc,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<McpImportBatch?>(null);
 }

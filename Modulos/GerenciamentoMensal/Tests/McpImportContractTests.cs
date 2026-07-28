@@ -49,7 +49,7 @@ public sealed class McpImportContractTests
 
         Assert.False(tools["finanmap_import_preview"].Attribute!.ReadOnly);
         Assert.False(tools["finanmap_import_preview"].Attribute!.Destructive);
-        Assert.True(tools["finanmap_import_confirm"].Attribute!.Destructive);
+        Assert.False(tools["finanmap_import_confirm"].Attribute!.Destructive);
         Assert.True(tools["finanmap_import_status_get"].Attribute!.ReadOnly);
         Assert.False(tools["finanmap_import_correction_preview"].Attribute!.Destructive);
     }

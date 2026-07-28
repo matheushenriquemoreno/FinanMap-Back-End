@@ -362,4 +362,78 @@ public class McpHttpDtoTests
 
         Assert.Equal(status, detail.Reconciliation?.Status);
     }
+
+    [Fact]
+    public void Audit_detail_maps_safe_import_batch_summary_expected_by_frontend()
+    {
+        var journal = McpOperationJournal.Start(
+            "owner-a",
+            "connection-a",
+            "correlation-a",
+            "finanmap_import_confirm",
+            McpOperationClass.Import);
+        journal.Complete(new Dictionary<string, object?>
+        {
+            ["importBatch"] = new Dictionary<string, object?>
+            {
+                ["state"] = "partial",
+                ["itemCount"] = 3,
+                ["countsByState"] = new Dictionary<string, object?>
+                {
+                    ["completed"] = 1,
+                    ["failed"] = 1,
+                    ["unknown"] = 1
+                },
+                ["countsByType"] = new Dictionary<string, object?>
+                {
+                    ["expense"] = 3
+                },
+                ["totals"] = new object?[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["type"] = "expense",
+                        ["amount"] = 75.50m,
+                        ["currency"] = "BRL"
+                    }
+                },
+                ["failures"] = new object?[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["clientItemId"] = "row-2",
+                        ["sourceRef"] = "Despesas!A2",
+                        ["field"] = "amount",
+                        ["code"] = "INVALID_VALUE",
+                        ["message"] = "Valor inválido.",
+                        ["guidance"] = "Corrija o valor."
+                    }
+                },
+                ["items"] = new object?[]
+                {
+                    new Dictionary<string, object?>
+                    {
+                        ["clientItemId"] = "row-1",
+                        ["sourceRef"] = "Despesas!A1",
+                        ["type"] = "expense",
+                        ["operationId"] = "operation-a",
+                        ["result"] = "completed"
+                    }
+                },
+                ["payload"] = "IMPORT_PAYLOAD_CANARY"
+            }
+        });
+
+        var detail = McpHttpDtoMapper.MapDetail(journal);
+        var json = JsonSerializer.Serialize(detail, JsonOptions);
+
+        Assert.Equal("partial", detail.ImportBatch?.State);
+        Assert.Equal(3, detail.ImportBatch?.ItemCount);
+        Assert.Equal(1, detail.ImportBatch?.CountsByState["completed"]);
+        Assert.Equal(3, detail.ImportBatch?.CountsByType["expense"]);
+        Assert.Equal(75.50m, Assert.Single(detail.ImportBatch!.Totals).Amount);
+        Assert.Equal("INVALID_VALUE", Assert.Single(detail.ImportBatch.Failures).Code);
+        Assert.Equal("operation-a", Assert.Single(detail.ImportBatch.Items).OperationId);
+        Assert.DoesNotContain("IMPORT_PAYLOAD_CANARY", json, StringComparison.Ordinal);
+    }
 }

@@ -58,16 +58,18 @@
 - [x] MCPF-P4-09: Revisar diffs e criar commits
 
 ## Phase 5 -- Importação estruturada com sucesso parcial e correção
-- [ ] MCPF-P5-01: Criar modelos e persistência de lote e item
-- [ ] MCPF-P5-02: Preparar e validar lote heterogêneo
-- [ ] MCPF-P5-03: Resolver categorias
-- [ ] MCPF-P5-04: Detectar possíveis duplicidades
-- [ ] MCPF-P5-05: Gerar prévia resumida do lote
-- [ ] MCPF-P5-06: Confirmar itens com sucesso parcial
-- [ ] MCPF-P5-07: Rejeitar binários e limitar payload
-- [ ] MCPF-P5-08: Adicionar guia e histórico de importação
-- [ ] MCPF-P5-09: Testar lote de 1.000 itens e cenários de falha
-- [ ] MCPF-P5-10: Revisar diffs e criar commits
+**Status: completed**
+
+- [x] MCPF-P5-01: Criar modelos e persistência de lote e item
+- [x] MCPF-P5-02: Preparar e validar lote heterogêneo
+- [x] MCPF-P5-03: Resolver categorias
+- [x] MCPF-P5-04: Detectar possíveis duplicidades
+- [x] MCPF-P5-05: Gerar prévia resumida do lote
+- [x] MCPF-P5-06: Confirmar itens com sucesso parcial
+- [x] MCPF-P5-07: Rejeitar binários e limitar payload
+- [x] MCPF-P5-08: Adicionar guia e histórico de importação
+- [x] MCPF-P5-09: Testar lote de 1.000 itens e cenários de falha
+- [x] MCPF-P5-10: Revisar diffs e criar commits
 
 ## Phase 6 -- Segurança, observabilidade, desempenho e UX de produção
 - [ ] MCPF-P6-01: Concluir hardening de autorização e transporte

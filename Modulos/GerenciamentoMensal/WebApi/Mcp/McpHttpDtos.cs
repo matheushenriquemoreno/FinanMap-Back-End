@@ -71,7 +71,8 @@ public static class McpHttpDtoMapper
             Confirmation(journal.ResultSummary),
             Reconciliation(journal),
             Result(journal),
-            Failure(journal));
+            Failure(journal),
+            ImportBatch(journal.ResultSummary));
 
     private static string ConnectionStatus(McpConnectionStatus status) => status switch
     {
@@ -286,6 +287,117 @@ public static class McpHttpDtoMapper
         };
     }
 
+    private static McpAuditImportBatchDto? ImportBatch(
+        IReadOnlyDictionary<string, object?> resultSummary)
+    {
+        if (!TryGetDictionary(resultSummary, "importBatch", out var batch))
+            return null;
+
+        var state = GetString(batch, "state");
+        var itemCount = GetInt(batch, "itemCount");
+        if (state is not ("partial" or "completed" or "failed" or "unknown") ||
+            itemCount is null or < 0)
+        {
+            return null;
+        }
+
+        var countsByState = SafeCounts(
+            batch,
+            "countsByState",
+            new[]
+            {
+                "valid", "invalid", "pending", "possible_duplicate", "skipped",
+                "already_applied", "completed", "failed", "unknown"
+            });
+        var countsByType = SafeCounts(
+            batch,
+            "countsByType",
+            new[] { "category", "income", "expense", "investment", "fixed_cost" });
+        var totals = GetDictionaries(batch, "totals")
+            .Select(item =>
+            {
+                var type = GetString(item, "type");
+                var amount = GetDecimal(item, "amount");
+                var currency = GetString(item, "currency");
+                return IsImportType(type) && amount is not null && currency == "BRL"
+                    ? new McpAuditImportTotalDto(type!, amount.Value, currency)
+                    : null;
+            })
+            .Where(item => item is not null)
+            .Cast<McpAuditImportTotalDto>()
+            .ToArray();
+        var failures = GetDictionaries(batch, "failures")
+            .Select(item =>
+            {
+                var clientItemId = GetString(item, "clientItemId");
+                var code = GetString(item, "code");
+                var message = GetString(item, "message");
+                var guidance = GetString(item, "guidance");
+                return clientItemId is null || code is null ||
+                       message is null || guidance is null
+                    ? null
+                    : new McpAuditImportFailureDto(
+                        clientItemId,
+                        GetString(item, "sourceRef"),
+                        GetString(item, "field"),
+                        code,
+                        message,
+                        guidance);
+            })
+            .Where(item => item is not null)
+            .Cast<McpAuditImportFailureDto>()
+            .ToArray();
+        var items = GetDictionaries(batch, "items")
+            .Select(item =>
+            {
+                var clientItemId = GetString(item, "clientItemId");
+                var type = GetString(item, "type");
+                var operationId = GetString(item, "operationId");
+                var result = GetString(item, "result");
+                return clientItemId is null || !IsImportType(type) ||
+                       operationId is null ||
+                       result is not ("completed" or "failed" or "unknown")
+                    ? null
+                    : new McpAuditImportItemDto(
+                        clientItemId,
+                        GetString(item, "sourceRef"),
+                        type!,
+                        operationId,
+                        result);
+            })
+            .Where(item => item is not null)
+            .Cast<McpAuditImportItemDto>()
+            .ToArray();
+
+        return new McpAuditImportBatchDto(
+            state,
+            itemCount.Value,
+            countsByState,
+            countsByType,
+            totals,
+            failures,
+            items);
+    }
+
+    private static IReadOnlyDictionary<string, int> SafeCounts(
+        IReadOnlyDictionary<string, object?> source,
+        string key,
+        IReadOnlyCollection<string> allowedKeys)
+    {
+        if (!TryGetDictionary(source, key, out var values))
+            return new Dictionary<string, int>();
+
+        return values
+            .Where(item => allowedKeys.Contains(item.Key))
+            .Select(item => (item.Key, Value: Integer(item.Value)))
+            .Where(item => item.Value is >= 0)
+            .ToDictionary(item => item.Key, item => item.Value!.Value);
+    }
+
+    private static bool IsImportType(string? type) =>
+        type is "category" or "income" or "expense" or "investment" or
+            "fixed_cost";
+
     private static string ResultState(McpOperationStepState state) => state switch
     {
         McpOperationStepState.Pending => "processing",
@@ -389,6 +501,36 @@ public static class McpHttpDtoMapper
                 null,
                 System.Globalization.DateTimeStyles.RoundtripKind,
                 out var parsed) => parsed,
+            _ => null
+        };
+    }
+
+    private static int? GetInt(
+        IReadOnlyDictionary<string, object?> values,
+        string key) =>
+        values.TryGetValue(key, out var value) ? Integer(value) : null;
+
+    private static int? Integer(object? value) => value switch
+    {
+        byte number => number,
+        short number => number,
+        int number => number,
+        long number when number is >= int.MinValue and <= int.MaxValue => (int)number,
+        _ => null
+    };
+
+    private static decimal? GetDecimal(
+        IReadOnlyDictionary<string, object?> values,
+        string key)
+    {
+        if (!values.TryGetValue(key, out var value))
+            return null;
+        return value switch
+        {
+            decimal number => number,
+            int number => number,
+            long number => number,
+            double number => Convert.ToDecimal(number),
             _ => null
         };
     }
@@ -512,7 +654,8 @@ public sealed record McpAuditEventDetailDto(
     McpAuditConfirmationDto? Confirmation,
     McpAuditReconciliationDto? Reconciliation,
     McpAuditWriteResultDto? Result,
-    McpAuditFailureDto? Failure);
+    McpAuditFailureDto? Failure,
+    McpAuditImportBatchDto? ImportBatch);
 
 public sealed record McpAuditPreviewChangeDto(
     string Field,
@@ -555,6 +698,35 @@ public sealed record McpAuditFailureDto(
     string Code,
     string Message,
     string Guidance);
+
+public sealed record McpAuditImportBatchDto(
+    string State,
+    int ItemCount,
+    IReadOnlyDictionary<string, int> CountsByState,
+    IReadOnlyDictionary<string, int> CountsByType,
+    IReadOnlyList<McpAuditImportTotalDto> Totals,
+    IReadOnlyList<McpAuditImportFailureDto> Failures,
+    IReadOnlyList<McpAuditImportItemDto> Items);
+
+public sealed record McpAuditImportTotalDto(
+    string Type,
+    decimal Amount,
+    string Currency);
+
+public sealed record McpAuditImportFailureDto(
+    string ClientItemId,
+    string? SourceRef,
+    string? Field,
+    string Code,
+    string Message,
+    string Guidance);
+
+public sealed record McpAuditImportItemDto(
+    string ClientItemId,
+    string? SourceRef,
+    string Type,
+    string OperationId,
+    string Result);
 
 public sealed record McpListResponse<T>(IReadOnlyList<T> Items, string? NextCursor = null);
 public sealed record McpRevokeRequest(string? ReasonCode);

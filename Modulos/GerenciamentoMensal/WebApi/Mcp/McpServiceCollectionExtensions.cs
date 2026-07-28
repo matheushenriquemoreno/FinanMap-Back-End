@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Application.Mcp.Configuration;
 using Application.Mcp.Interfaces;
+using Application.Mcp.Models;
 using Application.Mcp.Services;
 using Domain.Mcp.Repositories;
 using Infra.Data.Mongo.Mcp;
@@ -72,11 +73,14 @@ public static class McpServiceCollectionExtensions
             services.AddSingleton(TimeProvider.System);
             services.AddScoped<IMcpWriteEffectStore, McpWriteEffectStore>();
             services.AddScoped<IMcpPreviewRepository, McpPreviewRepository>();
+            services.AddScoped<IMcpImportRepository, McpImportRepository>();
             services.AddScoped<
                 IMcpConfirmationJournalRepository,
                 McpOperationJournalRepository>();
             services.AddScoped<IMcpWriteDomainGateway, McpWriteDomainGateway>();
             services.AddScoped<McpWriteService>();
+            services.AddScoped<IMcpImportService, McpImportService>();
+            services.AddScoped<IMcpImportCategoryResolver, McpImportCategoryResolver>();
             services.AddScoped<McpOperationReconciler>();
             services.AddHostedService<McpOperationReconciliationWorker>();
         }
@@ -113,21 +117,24 @@ public static class McpServiceCollectionExtensions
                     return schema;
                 }
             };
-            var writeTools = typeof(McpWriteTools)
-                .GetMethods()
-                .Where(method =>
-                    method.GetCustomAttributes(
-                            typeof(McpServerToolAttribute),
-                            inherit: false)
-                        .Length > 0)
-                .Select(method =>
+            var writeTools = new[] { typeof(McpWriteTools), typeof(McpImportTools) }
+                .SelectMany(toolType => toolType
+                    .GetMethods()
+                    .Where(method =>
+                        method.GetCustomAttributes(
+                                typeof(McpServerToolAttribute),
+                                inherit: false)
+                            .Length > 0)
+                    .Select(method => (ToolType: toolType, Method: method)))
+                .Select(definition =>
                 {
                     var tool = McpServerTool.Create(
-                        method,
-                        request => ActivatorUtilities.CreateInstance<McpWriteTools>(
+                        definition.Method,
+                        request => ActivatorUtilities.CreateInstance(
                             request.Services ??
                             throw new InvalidOperationException(
-                                "Escopo de serviços MCP indisponível.")),
+                                "Escopo de serviços MCP indisponível."),
+                            definition.ToolType),
                         new McpServerToolCreateOptions
                         {
                             SerializerOptions = writeSerializerOptions,

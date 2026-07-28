@@ -388,6 +388,12 @@ public sealed class McpWriteDomainGateway(
             : null;
     }
 
+    public Task<bool> HasPossibleDuplicateAsync(
+        string userId,
+        McpWriteCommand command,
+        CancellationToken cancellationToken = default) =>
+        effects.HasPossibleDuplicateAsync(userId, command, cancellationToken);
+
     private async Task<McpDomainPreparation> PrepareCreateAsync(
         string userId,
         McpWriteCommand command,

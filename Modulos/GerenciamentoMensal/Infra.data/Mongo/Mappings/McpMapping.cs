@@ -20,12 +20,32 @@ public sealed class McpMapping : IMongoMapping
         });
         BsonClassMap.TryRegisterClassMap<McpOperationStep>(map => map.AutoMap());
         BsonClassMap.TryRegisterClassMap<McpPreview>(map => map.AutoMap());
+        BsonClassMap.TryRegisterClassMap<McpImportBatch>(map =>
+        {
+            map.AutoMap();
+            map.GetMemberMap(item => item.ParentBatchId).SetIgnoreIfNull(true);
+        });
+        BsonClassMap.TryRegisterClassMap<McpImportSourceRef>(map => map.AutoMap());
+        BsonClassMap.TryRegisterClassMap<McpImportItemError>(map => map.AutoMap());
+        BsonClassMap.TryRegisterClassMap<McpImportItem>(map =>
+        {
+            map.AutoMap();
+            map.GetMemberMap(item => item.SourceRef).SetIgnoreIfNull(true);
+            map.GetMemberMap(item => item.DuplicateDecision).SetIgnoreIfNull(true);
+            map.GetMemberMap(item => item.OperationId).SetIgnoreIfNull(true);
+            map.GetMemberMap(item => item.CreatedEntityId).SetIgnoreIfNull(true);
+            map.GetMemberMap(item => item.FinishedAtUtc).SetIgnoreIfNull(true);
+        });
 
         var database = mongoClient.GetDatabase();
         CreateConnectionIndexes(database.GetCollection<McpConnection>("McpConnections"));
         CreateInteractionIndexes(database.GetCollection<McpAuthorizationInteraction>("McpAuthorizationInteractions"));
         CreateJournalIndexes(database.GetCollection<McpOperationJournal>("McpOperationJournal"));
         CreatePreviewIndexes(database.GetCollection<McpPreview>("McpPreviews"));
+        CreateImportBatchIndexes(
+            database.GetCollection<McpImportBatch>("McpImportBatches"));
+        CreateImportItemIndexes(
+            database.GetCollection<McpImportItem>("McpImportItems"));
         CreateFinancialEffectIndexes(database.GetCollection<BsonDocument>("Categoria"));
         CreateFinancialEffectIndexes(database.GetCollection<BsonDocument>("Rendimento"));
         CreateFinancialEffectIndexes(database.GetCollection<BsonDocument>("Despesa"));
@@ -146,6 +166,57 @@ public sealed class McpMapping : IMongoMapping
                     PartialFilterExpression =
                         filter.Type("LastMcpOperationId", BsonType.String)
                 })
+        ]);
+    }
+
+    private static void CreateImportBatchIndexes(
+        IMongoCollection<McpImportBatch> collection)
+    {
+        collection.Indexes.CreateMany(
+        [
+            new CreateIndexModel<McpImportBatch>(
+                Builders<McpImportBatch>.IndexKeys
+                    .Ascending(item => item.UserId)
+                    .Ascending(item => item.ConnectionId)
+                    .Ascending(item => item.BatchKey),
+                new CreateIndexOptions { Unique = true }),
+            new CreateIndexModel<McpImportBatch>(
+                Builders<McpImportBatch>.IndexKeys
+                    .Ascending(item => item.UserId)
+                    .Descending(item => item.CreatedAtUtc)),
+            new CreateIndexModel<McpImportBatch>(
+                Builders<McpImportBatch>.IndexKeys
+                    .Ascending(item => item.State)
+                    .Ascending(item => item.CreatedAtUtc)),
+            new CreateIndexModel<McpImportBatch>(
+                Builders<McpImportBatch>.IndexKeys
+                    .Ascending(item => item.PurgeAtUtc),
+                new CreateIndexOptions { ExpireAfter = TimeSpan.Zero })
+        ]);
+    }
+
+    private static void CreateImportItemIndexes(
+        IMongoCollection<McpImportItem> collection)
+    {
+        collection.Indexes.CreateMany(
+        [
+            new CreateIndexModel<McpImportItem>(
+                Builders<McpImportItem>.IndexKeys
+                    .Ascending(item => item.BatchId)
+                    .Ascending(item => item.ClientItemId),
+                new CreateIndexOptions { Unique = true }),
+            new CreateIndexModel<McpImportItem>(
+                Builders<McpImportItem>.IndexKeys
+                    .Ascending(item => item.BatchId)
+                    .Ascending(item => item.ValidationState)),
+            new CreateIndexModel<McpImportItem>(
+                Builders<McpImportItem>.IndexKeys
+                    .Ascending(item => item.UserId)
+                    .Ascending(item => item.Fingerprint)),
+            new CreateIndexModel<McpImportItem>(
+                Builders<McpImportItem>.IndexKeys
+                    .Ascending(item => item.PurgeAtUtc),
+                new CreateIndexOptions { ExpireAfter = TimeSpan.Zero })
         ]);
     }
 }

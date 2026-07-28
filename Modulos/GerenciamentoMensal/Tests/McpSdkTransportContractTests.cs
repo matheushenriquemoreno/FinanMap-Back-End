@@ -78,6 +78,10 @@ public class McpSdkTransportContractTests
                 "finanmap_fixed_cost_delete_preview",
                 "finanmap_fixed_cost_update_preview",
                 "finanmap_fixed_costs_list",
+                "finanmap_import_confirm",
+                "finanmap_import_correction_preview",
+                "finanmap_import_preview",
+                "finanmap_import_status_get",
                 "finanmap_income_create_preview",
                 "finanmap_income_delete_preview",
                 "finanmap_income_update_preview",
@@ -97,9 +101,10 @@ public class McpSdkTransportContractTests
         var writeTools = tools
             .Where(tool =>
                 tool.Name.Contains("_preview", StringComparison.Ordinal) ||
+                tool.Name.StartsWith("finanmap_import_", StringComparison.Ordinal) ||
                 tool.Name.StartsWith("finanmap_operation_", StringComparison.Ordinal))
             .ToDictionary(tool => tool.Name, StringComparer.Ordinal);
-        Assert.Equal(18, writeTools.Count);
+        Assert.Equal(22, writeTools.Count);
         Assert.All(writeTools.Values, tool =>
         {
             Assert.False(tool.ProtocolTool.Annotations?.OpenWorldHint);
@@ -127,6 +132,13 @@ public class McpSdkTransportContractTests
         Assert.Contains("\"APPLY_CHANGES\"", confirmSchema);
         Assert.Contains("\"DELETE_PERMANENTLY\"", confirmSchema);
         Assert.DoesNotContain("\"IMPORT_VALID_ITEMS\"", confirmSchema);
+
+        var importConfirm = writeTools["finanmap_import_confirm"];
+        Assert.False(importConfirm.ProtocolTool.Annotations?.ReadOnlyHint);
+        Assert.True(importConfirm.ProtocolTool.Annotations?.DestructiveHint);
+        Assert.Contains(
+            "\"IMPORT_VALID_ITEMS\"",
+            importConfirm.ProtocolTool.InputSchema.ToString());
 
         var cancel = writeTools["finanmap_operation_cancel"];
         Assert.False(cancel.ProtocolTool.Annotations?.ReadOnlyHint);

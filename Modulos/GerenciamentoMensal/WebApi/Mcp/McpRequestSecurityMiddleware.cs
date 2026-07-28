@@ -1,10 +1,14 @@
 using Application.Mcp.Configuration;
+using Application.Mcp.Services;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Options;
 
 namespace WebApi.Mcp;
 
 public sealed class McpRequestSecurityMiddleware
 {
+    public const long MaximumTransportBodyBytes =
+        McpImportService.MaximumPayloadBytes + (64 * 1024);
     private readonly RequestDelegate _next;
     private readonly IOptions<McpFeatureOptions> _options;
     private readonly IHostEnvironment _environment;
@@ -37,6 +41,39 @@ public sealed class McpRequestSecurityMiddleware
                 message = "O MCP aceita somente a conta individual autenticada."
             });
             return;
+        }
+
+        if (HttpMethods.IsPost(context.Request.Method))
+        {
+            if (string.IsNullOrWhiteSpace(context.Request.ContentType) ||
+                !context.Request.ContentType.StartsWith(
+                    "application/json",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                context.Response.StatusCode =
+                    StatusCodes.Status415UnsupportedMediaType;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    code = "UNSUPPORTED_MEDIA_TYPE",
+                    message = "O MCP aceita somente solicitações JSON estruturadas."
+                });
+                return;
+            }
+
+            if (context.Request.ContentLength > MaximumTransportBodyBytes)
+            {
+                context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    code = "LIMIT_EXCEEDED",
+                    message = "A solicitação excede o limite de transporte; divida a importação em lotes menores."
+                });
+                return;
+            }
+
+            var bodySize = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
+            if (bodySize is { IsReadOnly: false })
+                bodySize.MaxRequestBodySize = MaximumTransportBodyBytes;
         }
 
         if (!_environment.IsDevelopment() && !context.Request.IsHttps)

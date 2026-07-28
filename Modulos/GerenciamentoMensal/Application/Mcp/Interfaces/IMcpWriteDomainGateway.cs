@@ -24,6 +24,12 @@ public interface IMcpWriteDomainGateway
         McpWriteCommand command,
         string operationId,
         CancellationToken cancellationToken = default);
+
+    Task<bool> HasPossibleDuplicateAsync(
+        string userId,
+        McpWriteCommand command,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(false);
 }
 
 public sealed record McpWriteStoredRecord(
@@ -64,4 +70,10 @@ public interface IMcpWriteEffectStore
         string userId,
         CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<McpWriteStoredRecord>>([]);
+
+    Task<bool> HasPossibleDuplicateAsync(
+        string userId,
+        McpWriteCommand command,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(false);
 }

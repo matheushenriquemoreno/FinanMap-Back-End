@@ -92,6 +92,42 @@ public class McpRequestSecurityMiddlewareTests
             context.Response.Headers.WWWAuthenticate.ToString());
     }
 
+    [Fact]
+    public async Task Import_transport_rejects_multipart_before_the_mcp_handler()
+    {
+        var called = false;
+        var middleware = CreateMiddleware(
+            () => called = true,
+            options => options.EndpointEnabled = true);
+        var context = CreateContext();
+        context.Request.Method = HttpMethods.Post;
+        context.Request.ContentType = "multipart/form-data; boundary=test";
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status415UnsupportedMediaType, context.Response.StatusCode);
+        Assert.False(called);
+    }
+
+    [Fact]
+    public async Task Transport_rejects_unbounded_body_before_the_mcp_handler()
+    {
+        var called = false;
+        var middleware = CreateMiddleware(
+            () => called = true,
+            options => options.EndpointEnabled = true);
+        var context = CreateContext();
+        context.Request.Method = HttpMethods.Post;
+        context.Request.ContentType = "application/json";
+        context.Request.ContentLength =
+            McpRequestSecurityMiddleware.MaximumTransportBodyBytes + 1;
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status413PayloadTooLarge, context.Response.StatusCode);
+        Assert.False(called);
+    }
+
     private static McpRequestSecurityMiddleware CreateMiddleware(
         Action next,
         Action<McpFeatureOptions> configure)

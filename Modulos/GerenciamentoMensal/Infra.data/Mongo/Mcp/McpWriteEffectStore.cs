@@ -1,6 +1,7 @@
 #nullable enable
 
 using System.Globalization;
+using System.Text;
 using Application.Mcp.Interfaces;
 using Application.Mcp.Models;
 using Domain.Enum;
@@ -110,6 +111,47 @@ public sealed class McpWriteEffectStore(IMongoClient mongoClient)
         return documents
             .Select(document => Map(McpWriteEntity.Expense, document))
             .ToArray();
+    }
+
+    public async Task<bool> HasPossibleDuplicateAsync(
+        string userId,
+        McpWriteCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        var builder = Builders<BsonDocument>.Filter;
+        var filter = IdFilter(builder, "UsuarioId", userId);
+        if (command.Entity == McpWriteEntity.Category)
+        {
+            filter &= builder.Eq(
+                "Tipo",
+                Convert.ToInt32(command.Values["type"], CultureInfo.InvariantCulture));
+        }
+        else if (command.Entity == McpWriteEntity.FixedCost)
+        {
+            filter &= builder.Eq(
+                "DiaVencimento",
+                Convert.ToInt32(command.Values["dueDay"], CultureInfo.InvariantCulture));
+            var categoryId = command.Values["categoryId"]?.ToString();
+            if (!string.IsNullOrWhiteSpace(categoryId))
+                filter &= IdFilter(builder, "CategoriaId", categoryId);
+        }
+        else
+        {
+            filter &= builder.Eq(
+                          "Ano",
+                          Convert.ToInt32(command.Values["year"], CultureInfo.InvariantCulture)) &
+                      builder.Eq(
+                          "Mes",
+                          Convert.ToInt32(command.Values["month"], CultureInfo.InvariantCulture));
+            var categoryId = command.Values["categoryId"]?.ToString();
+            if (!string.IsNullOrWhiteSpace(categoryId))
+                filter &= IdFilter(builder, "CategoriaId", categoryId);
+        }
+
+        var candidates = await Collection(command.Entity)
+            .Find(filter)
+            .ToListAsync(cancellationToken);
+        return candidates.Any(candidate => MatchesDuplicate(command, candidate));
     }
 
     private IMongoCollection<BsonDocument> Collection(McpWriteEntity entity) =>
@@ -232,4 +274,45 @@ public sealed class McpWriteEffectStore(IMongoClient mongoClient)
                 value.ToString() ?? "0",
                 CultureInfo.InvariantCulture)
         };
+
+    private static bool MatchesDuplicate(
+        McpWriteCommand command,
+        BsonDocument candidate)
+    {
+        if (command.Entity == McpWriteEntity.Category)
+        {
+            return Normalized(candidate.GetValue("Nome", "").AsString) ==
+                   Normalized(command.Values["name"]?.ToString());
+        }
+        if (command.Entity == McpWriteEntity.FixedCost)
+        {
+            return Normalized(candidate.GetValue("Nome", "").AsString) ==
+                       Normalized(command.Values["name"]?.ToString()) &&
+                   candidate.GetValue("Ativo", true).ToBoolean() ==
+                       Convert.ToBoolean(
+                           command.Values["active"],
+                           CultureInfo.InvariantCulture);
+        }
+
+        return Decimal(candidate.GetValue("Valor", 0)) ==
+                   decimal.Parse(
+                       command.Values["amount"]?.ToString() ?? "0",
+                       CultureInfo.InvariantCulture) &&
+               Normalized(candidate.GetValue("Descricao", "").AsString) ==
+                   Normalized(command.Values["description"]?.ToString());
+    }
+
+    private static string Normalized(string? value)
+    {
+        var decomposed = (value ?? string.Empty)
+            .Trim()
+            .Normalize(NormalizationForm.FormD);
+        return new string(decomposed
+                .Where(character =>
+                    CharUnicodeInfo.GetUnicodeCategory(character) !=
+                    UnicodeCategory.NonSpacingMark)
+                .ToArray())
+            .Normalize(NormalizationForm.FormC)
+            .ToUpperInvariant();
+    }
 }

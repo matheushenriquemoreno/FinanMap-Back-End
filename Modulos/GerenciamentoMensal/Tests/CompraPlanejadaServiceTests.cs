@@ -295,6 +295,32 @@ public class CompraPlanejadaServiceTests
     }
 
     [Fact]
+    public async Task AtualizarSemDocumentoCorrespondente_RetornaNotFound()
+    {
+        var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-1" };
+        var compra = new CompraPlanejada("usuario-1", "Produto", 10m, PrioridadeCompraPlanejada.Media)
+        {
+            Id = "compra-1"
+        };
+        var repositorio = new CompraPlanejadaRepositoryFake(compra)
+        {
+            FalharAtualizacao = true
+        };
+        var service = new CompraPlanejadaService(repositorio, new UsuarioLogadoFake(usuario));
+
+        var resultado = await service.Atualizar(new UpdateCompraPlanejadaDTO
+        {
+            Id = "compra-1",
+            Nome = "Produto atualizado",
+            ValorEstimado = 20m,
+            Prioridade = PrioridadeCompraPlanejada.Alta
+        });
+
+        Assert.True(resultado.IsFailure);
+        Assert.Equal(TypeError.NotFound, resultado.Error.GetType());
+    }
+
+    [Fact]
     public async Task MutacoesEmContextoSomenteVisualizacao_RetornamForbidden()
     {
         var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-2" };
@@ -419,6 +445,7 @@ public class CompraPlanejadaServiceTests
     private sealed class CompraPlanejadaRepositoryFake : ICompraPlanejadaRepository
     {
         public List<CompraPlanejada> Itens { get; } = [];
+        public bool FalharAtualizacao { get; set; }
 
         public CompraPlanejadaRepositoryFake(params CompraPlanejada[] itens)
         {
@@ -460,6 +487,12 @@ public class CompraPlanejadaServiceTests
 
         public Task<CompraPlanejada> Update(CompraPlanejada entity)
             => Task.FromResult(entity);
+
+        public Task<bool> AtualizarSePendente(CompraPlanejada entity)
+            => Task.FromResult(!FalharAtualizacao && Itens.Any(item =>
+                item.Id == entity.Id
+                && item.UsuarioId == entity.UsuarioId
+                && item.Estado == EstadoCompraPlanejada.Pendente));
 
         public Task<List<CompraPlanejada>> GetPendentes(string usuarioId)
             => Task.FromResult(Itens

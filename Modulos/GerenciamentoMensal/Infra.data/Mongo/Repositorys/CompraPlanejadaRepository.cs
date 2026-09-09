@@ -29,6 +29,17 @@ public class CompraPlanejadaRepository : RepositoryMongoBase<CompraPlanejada>, I
     public Task<List<CompraPlanejada>> GetComprados(string usuarioId)
         => ListarPorEstado(usuarioId, EstadoCompraPlanejada.Comprado);
 
+    public async Task<bool> AtualizarSePendente(CompraPlanejada entity)
+    {
+        var filtro = Builders<CompraPlanejada>.Filter.And(
+            Builders<CompraPlanejada>.Filter.Eq(compra => compra.Id, entity.Id),
+            Builders<CompraPlanejada>.Filter.Eq(compra => compra.UsuarioId, entity.UsuarioId),
+            Builders<CompraPlanejada>.Filter.Eq(compra => compra.Estado, EstadoCompraPlanejada.Pendente));
+
+        var resultado = await _entityCollection.ReplaceOneAsync(filtro, entity);
+        return resultado.MatchedCount == 1;
+    }
+
     private async Task<List<CompraPlanejada>> ListarPorEstado(
         string usuarioId,
         EstadoCompraPlanejada estado)

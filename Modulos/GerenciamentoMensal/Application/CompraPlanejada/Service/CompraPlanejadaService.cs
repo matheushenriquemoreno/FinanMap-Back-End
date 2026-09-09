@@ -87,7 +87,9 @@ public class CompraPlanejadaService : ICompraPlanejadaService
                 updateDTO.Descricao,
                 links);
 
-            await _repository.Update(compra);
+            if (!await _repository.AtualizarSePendente(compra))
+                return Result.Failure<CompraPlanejadaResponseDTO>(
+                    Error.NotFound("Compra planejada informada não existe mais."));
 
             return Result.Success(CompraPlanejadaResponseDTO.Mapear(compra));
         }

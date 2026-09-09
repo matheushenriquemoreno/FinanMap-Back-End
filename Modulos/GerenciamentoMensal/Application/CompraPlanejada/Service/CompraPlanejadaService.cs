@@ -72,6 +72,10 @@ public class CompraPlanejadaService : ICompraPlanejadaService
             return Result.Failure<CompraPlanejadaResponseDTO>(
                 Error.NotFound("Compra planejada informada não existe."));
 
+        if (compra.Estado != EstadoCompraPlanejada.Pendente)
+            return Result.Failure<CompraPlanejadaResponseDTO>(
+                Error.Validation("Somente itens pendentes podem ser alterados."));
+
         try
         {
             var links = CriarLinks(updateDTO.LinksLojas);

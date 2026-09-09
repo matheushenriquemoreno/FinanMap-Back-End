@@ -70,5 +70,10 @@ public static class EndpointConfiguration
             .WithTags("Custos Fixos")
             .WithOpenApi()
             .RequireAuthorization();
+
+        app.MapCompraPlanejadaEndpoints()
+            .WithTags("Compras Planejadas")
+            .WithOpenApi()
+            .RequireAuthorization();
     }
 }

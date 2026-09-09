@@ -7,7 +7,7 @@
 
 ## Fase ativa
 
-Fase 02 — Gestão dos itens pendentes; implementação concluída e review pendente.
+Fase 03 — Ciclo da compra e integração com despesas; próxima fase autorizada após review da Fase 02.
 
 Cada fase deve ser executada isoladamente e aprovada por `review` antes da ativação da fase seguinte.
 
@@ -32,7 +32,7 @@ Cada fase deve ser executada isoladamente e aprovada por `review` antes da ativa
 | T06 | 02 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — atualização e validações aprovadas. |
 | T07 | 02 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — exclusão contextual, repetição e total aprovados. |
 | T08 | 02 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — validações de campos/links e falhas sem mutação aprovadas. |
-| T09 | 02 | Concluída | `dotnet test ...` — 47 aprovados; regressão completa da Fase 02 consolidada. |
+| T09 | 02 | Concluída | `dotnet test ...` — 50 aprovados; regressão completa da Fase 02 consolidada. |
 | T10 | 03 | Pendente | — |
 | T11 | 03 | Pendente | — |
 | T12 | 03 | Pendente | — |

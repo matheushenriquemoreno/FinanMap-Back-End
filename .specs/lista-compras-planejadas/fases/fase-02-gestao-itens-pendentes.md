@@ -92,11 +92,11 @@ Cobrir o CRUD da fase com testes focados de domínio e aplicação, usando fakes
 | T06 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — atualização e validações aprovadas. |
 | T07 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — exclusão contextual, repetição e total aprovados. |
 | T08 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — falhas de validação de campos e links retornam `Result.Validation` sem mutação. |
-| T09 | Concluída | `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore` — 47 testes aprovados; regressão de criação, consulta, atualização, exclusão, isolamento e falhas consolidada. |
+| T09 | Concluída | `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore` — 50 testes aprovados; regressão de criação, consulta, atualização, exclusão, isolamento e falhas consolidada. |
 
 ## Encerramento da fase
 
-- Gate completo: `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore` — 47 testes aprovados.
+- Gate completo: `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore` — 50 testes aprovados.
 - Gate completo: `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln --no-restore` — build aprovado.
 - Format-check da feature: `dotnet format ... --verify-no-changes --include` — aprovado.
 - Limitação herdada: o smoke autenticado contra Mongo permanece pendente porque o daemon Docker local não está disponível.

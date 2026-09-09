@@ -1,6 +1,6 @@
 # Fase 03 — Ciclo da compra e integração com despesas
 
-| Status       | Pendente   |
+| Status       | Concluída   |
 |--------------|------------|
 | Created      | 2026-09-09 |
 | Last Updated | 2026-09-09 |
@@ -123,3 +123,11 @@ Retornar na consulta de comprados a soma das estimativas originais e a soma dos 
 
 - O maior risco é a consistência entre registros de compra e despesa; o `review` da fase deve exigir evidência específica.
 - Esta fase libera o contrato necessário à Fase 03 do front-end.
+
+## Registro de execução
+
+- Implementados `POST /{id}/comprar`, `GET /compradas`, `POST /{id}/reverter` e a exclusão de comprado com preservação da despesa.
+- A integração usa `ICompraPlanejadaDespesaGateway` sobre `IDespesaService`; a leitura do acumulado mensal foi movida para antes da inserção da despesa para evitar falha posterior conhecida sem identificador compensável.
+- `CompraPlanejadaLifecycleTests` cobre conclusão, separação, vínculo único, falhas, compensação, reversão nas duas escolhas, exclusão e agregados.
+- Verificação: `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore` — 66 aprovados; build da solução aprovado; format-check limitado à feature aprovado.
+- Limitação: sem smoke autenticado/persistência Mongo neste ambiente.

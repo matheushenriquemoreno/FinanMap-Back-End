@@ -15,6 +15,8 @@ Design técnico: dispensado. Premissas no lugar: a feature seguirá as camadas j
 |------------|-----------|
 | 2026-09-09 | Versão inicial criada a partir do PRD aprovado, incluindo a preservação da despesa ao excluir um item comprado. |
 | 2026-09-09 | Gate 3 aprovado pelo solicitante; plano liberado para execução futura pela skill `implement`. |
+| 2026-09-09 | Implementação das quatro fases concluída; Fase 01 e Fase 02 concluídas, Fases 03 e 04 aguardando review final independente. |
+| 2026-09-09 | Gate 5 aprovado com ressalvas operacionais; as quatro fases e 18 tarefas foram concluídas no escopo local. |
 
 ## Objetivo geral da implementação
 
@@ -30,10 +32,10 @@ O contrato do back-end antecede a fase equivalente do front-end. Mudanças incom
 
 | #  | Fase | Arquivo | Status |
 |----|------|---------|--------|
-| 01 | Tracer bullet de cadastro e consulta | [fase-01-tracer-bullet-cadastro-consulta.md](fases/fase-01-tracer-bullet-cadastro-consulta.md) | Pendente |
-| 02 | Gestão dos itens pendentes | [fase-02-gestao-itens-pendentes.md](fases/fase-02-gestao-itens-pendentes.md) | Pendente |
-| 03 | Ciclo da compra e integração com despesas | [fase-03-ciclo-compra-despesas.md](fases/fase-03-ciclo-compra-despesas.md) | Pendente |
-| 04 | Compartilhamento, desempenho e robustez | [fase-04-compartilhamento-robustez.md](fases/fase-04-compartilhamento-robustez.md) | Pendente |
+| 01 | Tracer bullet de cadastro e consulta | [fase-01-tracer-bullet-cadastro-consulta.md](fases/fase-01-tracer-bullet-cadastro-consulta.md) | Concluída |
+| 02 | Gestão dos itens pendentes | [fase-02-gestao-itens-pendentes.md](fases/fase-02-gestao-itens-pendentes.md) | Concluída |
+| 03 | Ciclo da compra e integração com despesas | [fase-03-ciclo-compra-despesas.md](fases/fase-03-ciclo-compra-despesas.md) | Concluída |
+| 04 | Compartilhamento, desempenho e robustez | [fase-04-compartilhamento-robustez.md](fases/fase-04-compartilhamento-robustez.md) | Concluída |
 
 ## Dependências e ordem entre as fases
 

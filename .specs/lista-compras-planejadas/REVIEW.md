@@ -5,69 +5,111 @@
 | Created      | 2026-09-09 |
 | Last Updated | 2026-09-09 |
 
-**Escopo revisado:** Fase 02 — gestão dos itens pendentes
-**Versão da avaliação:** 3
-**Snapshot revisado:** `0c96e95`
+**Escopo revisado:** implementação completa — Fases 01 a 04, T01 a T18
+**Versão da avaliação:** 4
+**Snapshot revisado:** `12f83c1` mais a documentação de execução presente no working tree
 
 ## Artefatos analisados
 
-- PRD e plano aprovados em `.specs/lista-compras-planejadas/`.
-- Fase: `fases/fase-02-gestao-itens-pendentes.md`.
-- Estado: `fases/IMPLEMENTATION-STATE.md`.
-- Código Domain, Application, Infra.data e WebApi da compra planejada.
-- Reavaliação independente somente leitura do escopo T06–T09 após as correções.
+- PRD: `.specs/lista-compras-planejadas/PRODUCT-REQUIREMENTS.md` (Aprovado).
+- Plano, fases e estado: `.specs/lista-compras-planejadas/IMPLEMENTATION-PLAN.md`,
+  `fases/*.md` e `fases/IMPLEMENTATION-STATE.md`.
+- Código de Domain, Application, Infra.data, WebApi e testes da compra planejada.
+- Fluxo existente de despesas, incluindo `DespesaService.Adicionar` e exclusão.
+- Histórico deste arquivo e as correções registradas nas revisões anteriores.
 
-## Verificações
+## Resumo executivo
+
+As quatro fases do back-end foram reavaliadas contra os 17 requisitos e as cinco
+expectativas do PRD. O ciclo pendente/comprado, vínculo opcional de despesa,
+reversão, preservação na exclusão, autorização contextual e agregados estão
+implementados e cobertos por testes; a janela conhecida de leitura do acumulado
+após inserção foi eliminada movendo essa leitura para antes do `Add`. O veredito
+é **Aprovado com ressalvas**: o código passa nos gates locais, mas smoke
+autenticado, Mongo real, plano de consulta e métricas de latência/memória não
+puderam ser executados neste ambiente.
+
+## Resultado das verificações obrigatórias
 
 | Verificação | Resultado | Evidência |
 |-------------|-----------|-----------|
-| T06/T07/T08 e critérios da Fase 02 | Atendidos com ressalva | Edição, exclusão, isolamento, validações e estados cobertos por código/teste. |
-| Regressão completa | Atendida | `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore` — 50 aprovados. |
-| Build | Atendida | `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln --no-restore` — 0 erros; warnings preexistentes no restante da solução. |
-| Formato | Atendida com ressalva | Format-check limitado à feature passou; global falha em whitespace preexistente fora do escopo. |
-| Complexidade e algoritmo | Atendida | Atualização/exclusão são operações lineares no serviço; persistência usa filtro contextual e o novo replace confirma `MatchedCount`. |
-| Escopo | Atendida | Não foram incluídas transições de compra, reservadas à Fase 03. |
+| Requisitos e critérios de aceitação | Atendida | Matriz abaixo; endpoints, entidade, serviço, repositório e testes cobrem T01–T18. |
+| Regressão completa | Atendida | `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore` — 66 aprovados, 0 falhas. |
+| Build | Atendida | `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln --no-restore` — 0 avisos e 0 erros. |
+| Formato | Atendida com ressalva | `dotnet format ... --verify-no-changes --include` limitado aos arquivos da feature passou; o format-check global continua afetado por whitespace preexistente fora da feature. |
+| Complexidade ciclomática | Atendida com justificativa | Contagem manual das funções novas/alteradas: `Concluir` 20 e `Reverter` 12; ambas estão no limite de 20 e concentram protocolo de validação/compensação coberto pelos testes; auxiliares permanecem abaixo de 10. Nenhuma função excede 20. |
+| Complexidade algorítmica | Atendida | Consultas usam filtro contextual, índice composto e uma ordenação; agregados são somas lineares e não há I/O dentro de loop por item. |
+| Escopo e arquitetura | Atendida | Camadas existentes preservadas; integração usa gateway sobre `IDespesaService`; não foram adicionados limites, migrações ou operações fora do PRD. |
+| Autorização e isolamento | Atendida | `PodeEditar`, `IdContextoDados` e filtro por proprietário/estado são exercitados na matriz proprietário/editor/visualizador. |
+| Smoke Mongo/HTTP e métricas | Não verificado no ambiente | Docker/Mongo local indisponível; a limitação está registrada no estado e não é apresentada como prova de publicação. |
+| `git diff --check` | Atendida | Sem erros no working tree revisado. |
 
 ## Matriz de rastreabilidade
 
-| Requisito | Evidência objetiva | Status |
-|-----------|--------------------|--------|
-| LCP-BE-02 — alterar pendente | `Atualizar`, PUT contextual, teste de todos os campos, descrição e substituição de links | Comprovado |
-| LCP-BE-03 — excluir pendente | `Excluir`, DELETE contextual, repetição, outro proprietário e total subsequente | Comprovado |
-| LCP-BE-04 — links | Construção de links em criação/atualização e regressões válidas/inválidas | Comprovado |
-| EXPECT-BE-01 — precisão | `decimal` preservado nos DTOs, entidade e soma | Comprovado |
-| EXPECT-BE-04 — falhas distinguíveis | Validation, NotFound e Forbidden cobertos por testes | Comprovado |
-| EXPECT-BE-05 — sem mutação parcial | Validação antes da atribuição, edição de comprado bloqueada e replace contextual confirmado | Comprovado nos cenários testados |
+| Requisito | Código | Teste/evidência | Status |
+|-----------|--------|-----------------|--------|
+| LCP-BE-01 — cadastrar pendente | `CompraPlanejadaService.Adicionar`, DTO e endpoint POST | `CompraPlanejadaServiceTests`; build da WebApi | Comprovado |
+| LCP-BE-02 — alterar pendente | `Atualizar`, `AtualizarSePendente` e PUT contextual | `CompraPlanejadaServiceTests`, incluindo todos os campos e links | Comprovado |
+| LCP-BE-03 — excluir pendente | `Excluir` e DELETE contextual | testes de exclusão, repetição e total subsequente | Comprovado |
+| LCP-BE-04 — múltiplos links | `LinkLojaCompraPlanejada`, `CriarLinks` e mapping | testes de links válidos, inválidos e substituição | Comprovado |
+| LCP-BE-05 — total de pendentes | `ListarPendentes` e `Sum(ValorEstimado)` | testes de vazio, decimal e massa | Comprovado |
+| LCP-BE-06 — ordem dos pendentes | `ListarPorEstado` com prioridade/data descendentes | teste de prioridade e recência; massa de 400 itens | Comprovado |
+| LCP-BE-07 — concluir com valor/data válidos | `Concluir` e `MarcarComoComprado` | conclusão válida, zero, data futura e repetição | Comprovado |
+| LCP-BE-08 — separar pendente/comprado | estados da entidade e `GetPendentes`/`GetComprados` | ciclo e consulta exclusiva de comprados | Comprovado |
+| LCP-BE-09 — criar e vincular despesa | `CompraPlanejadaDespesaGateway`, DTO e `VincularDespesa` | valor real, mês, ano, categoria e vínculo verificados | Comprovado |
+| LCP-BE-10 — no máximo uma despesa | estado `DespesaId` e conclusão única | repetição e teste de domínio de vínculo único | Comprovado |
+| LCP-BE-11 — dados dos comprados | `ListaComprasCompradasResponseDTO` e mapping | estimativa, real, data e indicação de vínculo | Comprovado |
+| LCP-BE-12 — reverter compra | `Reverter`, `ReverterCompra` e CAS contextual | reversão simples e restauração dos dados | Comprovado |
+| LCP-BE-13 — excluir despesa na reversão | `ReverterCompraPlanejadaDTO` e gateway de exclusão | casos preservar, excluir e falha de exclusão | Comprovado |
+| LCP-BE-14 — excluir comprado preservando despesa | `Excluir` remove só item/vínculo | teste confirma ausência de chamada de exclusão da despesa | Comprovado |
+| LCP-BE-15 — escrita autorizada | `PodeEditar` e `IUsuarioLogado` | proprietário, editor, visualizador e contexto alheio | Comprovado |
+| LCP-BE-16 — leitura compartilhada | filtros por `IdContextoDados` | visualizador lê pendentes/comprados sem acesso lateral | Comprovado |
+| LCP-BE-17 — totais de comprados | `TotalEstimado` e `TotalReal` | decimais, vazio, conclusão, reversão, exclusão e massa | Comprovado |
+| EXPECT-BE-01 — precisão BRL | `decimal` na entidade, DTOs e `Sum` | valores fracionários e agregados exatos | Comprovado |
+| EXPECT-BE-02 — estados consistentes | transições encapsuladas e `AtualizarSeEstado` | falha de persistência, reversão e separação de listas | Comprovado nos cenários testados |
+| EXPECT-BE-03 — centenas de itens | índice composto e consultas lineares | `CentenasDeItens_MantemSeparacaoEAgregadosExatos` com 400 itens | Comprovado localmente |
+| EXPECT-BE-04 — erros distinguíveis | `Validation`, `Forbidden`, `NotFound` e `Exception` | validação, autorização, inexistência e falhas de gateway | Comprovado |
+| EXPECT-BE-05 — falha sem confirmação falsa | leitura do acumulado antes do `Add`, CAS e compensação | `FalhaAoPersistirVinculo_CompensaDespesaEDeixaPendente`, falha de exclusão e regressão de `DespesaService` | Comprovado nos cenários testados; Mongo real pendente |
 
 ## Achados
 
-| ID | Severidade | Achado | Encaminhamento |
-|----|-----------|--------|----------------|
-| A-01 | Baixo, operacional | Smoke HTTP autenticado, persistência BSON e inspeção de índices não executados por ausência de Mongo/Docker. | Reexecutar antes da publicação. |
-| A-02 | Processo | A Fase 02 foi implementada antes do primeiro gate independente da Fase 01; o desvio está registrado na revisão v2. | Não iniciar Fase 03 sem este gate e sem preservar o histórico. |
+| ID | Severidade | Achado | Evidência | Impacto | Recomendação | Encaminhamento |
+|----|------------|--------|-----------|---------|--------------|----------------|
+| A-01 | Baixo, operacional | Não houve execução do smoke HTTP autenticado nem Mongo real. | Docker/Mongo local indisponível; 66 testes são locais com fakes. | Persistência BSON, índices efetivos e comportamento de deployment continuam sem prova executável. | Reexecutar smoke nos três perfis, inspeção de índice e métricas antes da publicação. | Operação/pré-publicação |
+| A-02 | Informativo | A consistência entre documentos usa compensação, não transação distribuída. | `Concluir` cria a despesa, confirma o item por CAS e compensa falhas; leitura do acumulado ocorre antes da inserção. | Uma indisponibilidade simultânea durante a compensação exige reconciliação operacional; não há evidência de ocorrência nos cenários testados. | Manter telemetria/reconciliação no desenho de produção; se a garantia atômica virar requisito, abrir design técnico. | Operação ou `create-technical-design` se o requisito mudar |
 
-## Correções verificadas desde a revisão da Fase 02
+## Riscos residuais e ressalvas aceitas
 
-- Atualização de comprado retorna `Validation` e não altera campos.
-- Descrição e substituição de links são verificadas explicitamente.
-- PUT e DELETE em contexto somente visualização retornam `Forbidden`.
-- Repositório usa `AtualizarSePendente` com filtro por ID, proprietário e estado e só confirma quando `MatchedCount == 1`.
-- A documentação foi corrigida para 50 testes aprovados.
-
-## Limitações e riscos residuais
-
-- Docker falha por daemon indisponível (`dockerDesktopLinuxEngine`) e `localhost:27017` não está acessível.
-- O format-check global permanece limitado por arquivos preexistentes fora da feature.
-- Não há evidência de execução HTTP/Mongo neste ambiente; os testes de feature são unitários com fake de repositório.
+- Smoke autenticado, persistência Mongo, plano de consulta e métricas não foram
+  executados por indisponibilidade do daemon local; a ressalva é operacional e
+  deve ser resolvida antes da publicação.
+- O format-check global inclui whitespace preexistente fora do escopo; o
+  conjunto de arquivos da feature passou sem alterações.
+- A revisão local aceita a compensação implementada como estratégia desta
+  versão; o risco residual de falha simultânea de compensação não é tratado como
+  confirmação de sucesso e permanece explicitamente operacional.
 
 ## Veredito
 
-**Aprovado com ressalvas.**
+**Veredito:** Aprovado com ressalvas.
 
-O comportamento da Fase 02 atende ao recorte T06–T09, incluindo proteção de item comprado e confirmação contextual de atualização. A ressalva operacional do Mongo e o desvio histórico de ordem permanecem explícitos. Os requisitos LCP-BE-07–LCP-BE-14 e LCP-BE-17 não foram cobrados neste gate porque pertencem à Fase 03 conforme o plano.
+**Fundamentação:** todos os requisitos e expectativas possuem implementação e
+evidência local; os achados anteriores sobre a leitura pós-inserção, o fake que
+ignorava o estado esperado e a ausência de cenário positivo de editor foram
+encerrados no estado atual. Não há achado bloqueador ou alto sem tratamento. A
+única ressalva de entrega é a validação externa de Mongo/HTTP/métricas.
+
+## Próxima ação
+
+Trabalho concluído no escopo local do plano. Antes de publicar, executar o smoke
+autenticado, a inspeção do índice composto e a medição de volume em ambiente
+integrado.
 
 ## Histórico de revisões anteriores
 
-- **Versão 1 — 2026-09-09:** revisão local da Fase 01, aprovada com ressalvas.
-- **Versão 2 — 2026-09-09:** reavaliação independente da Fase 01, aprovando após correção de nulo/cobertura e registrando desvio de sequência.
-- **Versão 3 — 2026-09-09:** review independente da Fase 02 no escopo correto, aprovado com ressalvas após correção de `MatchedCount`; 50 testes aprovados.
+| Versão | Data | Veredito | Resumo |
+|--------|------|----------|--------|
+| 1 | 2026-09-09 | Aprovado com ressalvas | Review local da Fase 01, com ressalva operacional do Mongo. |
+| 2 | 2026-09-09 | Aprovado com ressalvas | Reavaliação da Fase 01 após correções de nulo e cobertura. |
+| 3 | 2026-09-09 | Aprovado com ressalvas | Review independente da Fase 02; `MatchedCount` contextual confirmado e 50 testes aprovados. |
+| 4 | 2026-09-09 | Aprovado com ressalvas | Review final das quatro fases; 66 testes, build e format-check da feature aprovados; smoke/Mongo permanecem operacionais. |

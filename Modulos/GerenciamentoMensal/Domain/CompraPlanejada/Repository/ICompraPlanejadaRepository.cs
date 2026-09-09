@@ -8,4 +8,5 @@ public interface ICompraPlanejadaRepository : IRepositoryBase<CompraPlanejada>
     Task<List<CompraPlanejada>> GetPendentes(string usuarioId);
     Task<List<CompraPlanejada>> GetComprados(string usuarioId);
     Task<bool> AtualizarSePendente(CompraPlanejada entity);
+    Task<bool> AtualizarSeEstado(CompraPlanejada entity, EstadoCompraPlanejada estadoEsperado);
 }

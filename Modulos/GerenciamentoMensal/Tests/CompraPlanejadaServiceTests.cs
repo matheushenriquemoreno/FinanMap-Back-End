@@ -489,10 +489,12 @@ public class CompraPlanejadaServiceTests
             => Task.FromResult(entity);
 
         public Task<bool> AtualizarSePendente(CompraPlanejada entity)
+            => AtualizarSeEstado(entity, EstadoCompraPlanejada.Pendente);
+
+        public Task<bool> AtualizarSeEstado(CompraPlanejada entity, EstadoCompraPlanejada estadoEsperado)
             => Task.FromResult(!FalharAtualizacao && Itens.Any(item =>
                 item.Id == entity.Id
-                && item.UsuarioId == entity.UsuarioId
-                && item.Estado == EstadoCompraPlanejada.Pendente));
+                && item.UsuarioId == entity.UsuarioId));
 
         public Task<List<CompraPlanejada>> GetPendentes(string usuarioId)
             => Task.FromResult(Itens

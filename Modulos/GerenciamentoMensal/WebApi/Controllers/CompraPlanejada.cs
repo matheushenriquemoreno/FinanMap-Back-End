@@ -34,9 +34,36 @@ public static class CompraPlanejada
             return result.MapResult();
         });
 
+        group.MapPost("/{id:length(24)}/comprar", async (
+            string id,
+            ConcluirCompraPlanejadaDTO dto,
+            ICompraPlanejadaService service) =>
+        {
+            var result = await service.Concluir(id, dto);
+
+            return result.MapResult();
+        });
+
+        group.MapPost("/{id:length(24)}/reverter", async (
+            string id,
+            ReverterCompraPlanejadaDTO dto,
+            ICompraPlanejadaService service) =>
+        {
+            var result = await service.Reverter(id, dto);
+
+            return result.MapResult();
+        });
+
         group.MapGet("/", async (ICompraPlanejadaService service) =>
         {
             var result = await service.ListarPendentes();
+
+            return result.MapResult();
+        });
+
+        group.MapGet("/compradas", async (ICompraPlanejadaService service) =>
+        {
+            var result = await service.ListarComprados();
 
             return result.MapResult();
         });

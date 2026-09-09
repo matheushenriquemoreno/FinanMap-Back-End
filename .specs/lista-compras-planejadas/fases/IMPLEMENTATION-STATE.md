@@ -27,7 +27,7 @@ Cada fase deve ser executada isoladamente e aprovada por `review` antes da ativa
 | T01 | 01 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaDomainTests` — 9 aprovados; entidade, prioridade e links validados. |
 | T02 | 01 | Concluída | `dotnet build ... --no-restore` — solução aprovada; mapping/index composto adicionado. Smoke Mongo pendente de ambiente. |
 | T03 | 01 | Concluída | `dotnet build ... --no-restore` — repositório com filtro de contexto/estado e ordenação aprovado. Smoke Mongo pendente de ambiente. |
-| T04 | 01 | Pendente | — |
+| T04 | 01 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — 4 aprovados; DTO, contexto, links e total decimal validados. |
 | T05 | 01 | Pendente | — |
 | T06 | 02 | Pendente | — |
 | T07 | 02 | Pendente | — |

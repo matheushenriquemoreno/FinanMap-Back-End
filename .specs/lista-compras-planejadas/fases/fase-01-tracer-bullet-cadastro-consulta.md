@@ -1,6 +1,6 @@
 # Fase 01 — Tracer bullet de cadastro e consulta
 
-| Status       | Pendente   |
+| Status       | Em execução |
 |--------------|------------|
 | Created      | 2026-09-09 |
 | Last Updated | 2026-09-09 |
@@ -98,3 +98,13 @@ Expor criação e consulta no grupo protegido `/api/compras-planejadas`, registr
 
 - MongoDB local precisa estar disponível para a verificação de persistência.
 - O contrato criado será dependência externa da Fase 01 do front-end.
+
+## Execução
+
+| Tarefa | Status | Evidência |
+|--------|--------|-----------|
+| T01 | Concluída | `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore --filter FullyQualifiedName~CompraPlanejadaDomainTests` — 9 testes aprovados. |
+| T02 | Pendente | — |
+| T03 | Pendente | — |
+| T04 | Pendente | — |
+| T05 | Pendente | — |

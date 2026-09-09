@@ -1,13 +1,13 @@
 # Estado da Implementação — Lista de Compras Planejadas (Back-end)
 
-| Status       | Pendente   |
+| Status       | Em execução |
 |--------------|------------|
 | Created      | 2026-09-09 |
 | Last Updated | 2026-09-09 |
 
 ## Fase ativa
 
-Nenhuma — implementação não iniciada.
+Fase 01 — Tracer bullet de cadastro e consulta.
 
 Cada fase deve ser executada isoladamente e aprovada por `review` antes da ativação da fase seguinte.
 
@@ -15,7 +15,7 @@ Cada fase deve ser executada isoladamente e aprovada por `review` antes da ativa
 
 | #  | Fase | Arquivo | Status | Concluída em |
 |----|------|---------|--------|--------------|
-| 01 | Tracer bullet de cadastro e consulta | fases/fase-01-tracer-bullet-cadastro-consulta.md | Pendente | — |
+| 01 | Tracer bullet de cadastro e consulta | fases/fase-01-tracer-bullet-cadastro-consulta.md | Em execução | — |
 | 02 | Gestão dos itens pendentes | fases/fase-02-gestao-itens-pendentes.md | Pendente | — |
 | 03 | Ciclo da compra e integração com despesas | fases/fase-03-ciclo-compra-despesas.md | Pendente | — |
 | 04 | Compartilhamento, desempenho e robustez | fases/fase-04-compartilhamento-robustez.md | Pendente | — |
@@ -24,7 +24,7 @@ Cada fase deve ser executada isoladamente e aprovada por `review` antes da ativa
 
 | ID  | Fase | Status | Evidências |
 |-----|------|--------|------------|
-| T01 | 01 | Pendente | — |
+| T01 | 01 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaDomainTests` — 9 aprovados; entidade, prioridade e links validados. |
 | T02 | 01 | Pendente | — |
 | T03 | 01 | Pendente | — |
 | T04 | 01 | Pendente | — |

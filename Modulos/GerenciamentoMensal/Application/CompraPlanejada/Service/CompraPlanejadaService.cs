@@ -98,6 +98,24 @@ public class CompraPlanejadaService : ICompraPlanejadaService
         }
     }
 
+    public async Task<Result> Excluir(string id)
+    {
+        if (!PodeEditar())
+            return Result.Failure(
+                Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
+        var compra = await _repository.GetById(id, _usuarioLogado.IdContextoDados);
+        if (compra is null)
+            return Result.Failure(Error.NotFound("Compra planejada informada não existe."));
+
+        if (compra.Estado != EstadoCompraPlanejada.Pendente)
+            return Result.Failure(Error.Validation("Somente itens pendentes podem ser excluídos."));
+
+        await _repository.Delete(compra);
+
+        return Result.Success();
+    }
+
     private bool PodeEditar()
     {
         return !_usuarioLogado.EmModoCompartilhado

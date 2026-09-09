@@ -16,6 +16,24 @@ public static class CompraPlanejada
             return result.MapResultCreated();
         });
 
+        group.MapPut("/{id:length(24)}", async (
+            string id,
+            UpdateCompraPlanejadaDTO dto,
+            ICompraPlanejadaService service) =>
+        {
+            dto.Id = id;
+            var result = await service.Atualizar(dto);
+
+            return result.MapResult();
+        });
+
+        group.MapDelete("/{id:length(24)}", async (string id, ICompraPlanejadaService service) =>
+        {
+            var result = await service.Excluir(id);
+
+            return result.MapResult();
+        });
+
         group.MapGet("/", async (ICompraPlanejadaService service) =>
         {
             var result = await service.ListarPendentes();

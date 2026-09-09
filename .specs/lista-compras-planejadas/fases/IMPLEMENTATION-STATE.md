@@ -16,7 +16,7 @@ Cada fase deve ser executada isoladamente e aprovada por `review` antes da ativa
 | #  | Fase | Arquivo | Status | Concluída em |
 |----|------|---------|--------|--------------|
 | 01 | Tracer bullet de cadastro e consulta | fases/fase-01-tracer-bullet-cadastro-consulta.md | Concluída | 2026-09-09 |
-| 02 | Gestão dos itens pendentes | fases/fase-02-gestao-itens-pendentes.md | Pendente | — |
+| 02 | Gestão dos itens pendentes | fases/fase-02-gestao-itens-pendentes.md | Em execução | — |
 | 03 | Ciclo da compra e integração com despesas | fases/fase-03-ciclo-compra-despesas.md | Pendente | — |
 | 04 | Compartilhamento, desempenho e robustez | fases/fase-04-compartilhamento-robustez.md | Pendente | — |
 
@@ -29,8 +29,8 @@ Cada fase deve ser executada isoladamente e aprovada por `review` antes da ativa
 | T03 | 01 | Concluída | `dotnet build ... --no-restore` — repositório com filtro de contexto/estado e ordenação aprovado. Smoke Mongo pendente de ambiente. |
 | T04 | 01 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — 4 aprovados; DTO, contexto, links e total decimal validados. |
 | T05 | 01 | Concluída | `dotnet build ... --no-restore` — endpoints `POST`/`GET /api/compras-planejadas` publicados, protegidos e incluídos no OpenAPI; smoke Mongo pendente. |
-| T06 | 02 | Pendente | — |
-| T07 | 02 | Pendente | — |
+| T06 | 02 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — atualização e validações aprovadas. |
+| T07 | 02 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — exclusão contextual, repetição e total aprovados. |
 | T08 | 02 | Pendente | — |
 | T09 | 02 | Pendente | — |
 | T10 | 03 | Pendente | — |

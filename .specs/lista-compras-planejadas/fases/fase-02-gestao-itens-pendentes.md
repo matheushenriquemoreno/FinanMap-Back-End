@@ -1,6 +1,6 @@
 # Fase 02 — Gestão dos itens pendentes
 
-| Status       | Pendente   |
+| Status       | Em execução |
 |--------------|------------|
 | Created      | 2026-09-09 |
 | Last Updated | 2026-09-09 |
@@ -84,3 +84,12 @@ Cobrir o CRUD da fase com testes focados de domínio e aplicação, usando fakes
 ## Riscos, premissas e dependências externas da fase
 
 - Esta fase libera o contrato necessário à Fase 02 do front-end.
+
+## Execução
+
+| Tarefa | Status | Evidência |
+|--------|--------|-----------|
+| T06 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — atualização e validações aprovadas. |
+| T07 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — exclusão contextual, repetição e total aprovados. |
+| T08 | Pendente | — |
+| T09 | Pendente | — |

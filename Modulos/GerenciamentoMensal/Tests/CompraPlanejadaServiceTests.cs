@@ -181,6 +181,66 @@ public class CompraPlanejadaServiceTests
         Assert.Equal(TypeError.NotFound, resultado.Error.GetType());
     }
 
+    [Fact]
+    public async Task ExcluirPendente_RemoveSomenteOAlvoEAtualizaTotal()
+    {
+        var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-1" };
+        var alvo = new CompraPlanejada("usuario-1", "Alvo", 10m, PrioridadeCompraPlanejada.Media)
+        {
+            Id = "compra-1"
+        };
+        var outro = new CompraPlanejada("usuario-1", "Outro", 20m, PrioridadeCompraPlanejada.Baixa)
+        {
+            Id = "compra-2"
+        };
+        var repositorio = new CompraPlanejadaRepositoryFake(alvo, outro);
+        var service = new CompraPlanejadaService(repositorio, new UsuarioLogadoFake(usuario));
+
+        var resultado = await service.Excluir("compra-1");
+        var lista = await service.ListarPendentes();
+
+        Assert.True(resultado.IsSucess);
+        Assert.Single(lista.Value.Itens);
+        Assert.Equal("compra-2", lista.Value.Itens[0].Id);
+        Assert.Equal(20m, lista.Value.TotalEstimado);
+    }
+
+    [Fact]
+    public async Task ExcluirPendenteInexistenteOuDeOutroContexto_RetornaNotFound()
+    {
+        var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-1" };
+        var repositorio = new CompraPlanejadaRepositoryFake(new CompraPlanejada(
+            "usuario-2", "Alheio", 10m, PrioridadeCompraPlanejada.Media)
+        {
+            Id = "compra-2"
+        });
+        var service = new CompraPlanejadaService(repositorio, new UsuarioLogadoFake(usuario));
+
+        var resultado = await service.Excluir("compra-2");
+
+        Assert.True(resultado.IsFailure);
+        Assert.Equal(TypeError.NotFound, resultado.Error.GetType());
+        Assert.Single(repositorio.Itens);
+    }
+
+    [Fact]
+    public async Task ExcluirPendenteRepetido_RetornaNotFound()
+    {
+        var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-1" };
+        var repositorio = new CompraPlanejadaRepositoryFake(new CompraPlanejada(
+            "usuario-1", "Produto", 10m, PrioridadeCompraPlanejada.Media)
+        {
+            Id = "compra-1"
+        });
+        var service = new CompraPlanejadaService(repositorio, new UsuarioLogadoFake(usuario));
+
+        await service.Excluir("compra-1");
+        var resultado = await service.Excluir("compra-1");
+
+        Assert.True(resultado.IsFailure);
+        Assert.Equal(TypeError.NotFound, resultado.Error.GetType());
+    }
+
     private sealed class UsuarioLogadoFake(
         Usuario usuario,
         string? contexto = null,

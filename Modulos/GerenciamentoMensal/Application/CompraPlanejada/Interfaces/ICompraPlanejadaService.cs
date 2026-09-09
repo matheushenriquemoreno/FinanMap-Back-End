@@ -7,4 +7,5 @@ public interface ICompraPlanejadaService
     Task<Result<CompraPlanejadaResponseDTO>> Adicionar(CreateCompraPlanejadaDTO createDTO);
     Task<Result<CompraPlanejadaResponseDTO>> Atualizar(UpdateCompraPlanejadaDTO updateDTO);
     Task<Result<ListaComprasPlanejadasResponseDTO>> ListarPendentes();
+    Task<Result> Excluir(string id);
 }

@@ -263,6 +263,34 @@ public class CompraPlanejadaLifecycleTests
     }
 
     [Fact]
+    public async Task EditorDoContexto_ExecutaCicloCompletoDoProprietarioSelecionado()
+    {
+        var compra = CriarCompra("compra-1", 100m);
+        var repositorio = new CompraPlanejadaLifecycleRepository(compra);
+        var editor = new Usuario("Editor", "editor@finanmap.com") { Id = "usuario-2" };
+        var service = new CompraPlanejadaService(
+            repositorio,
+            new UsuarioLogadoFake(editor, "usuario-1", NivelPermissao.Editar));
+
+        var atualizar = await service.Atualizar(new UpdateCompraPlanejadaDTO
+        {
+            Id = "compra-1",
+            Nome = "Compra editada",
+            ValorEstimado = 110m,
+            Prioridade = PrioridadeCompraPlanejada.Alta
+        });
+        var concluir = await service.Concluir("compra-1", ConclusaoValida());
+        var reverter = await service.Reverter("compra-1", new ReverterCompraPlanejadaDTO());
+        var excluir = await service.Excluir("compra-1");
+
+        Assert.True(atualizar.IsSucess);
+        Assert.True(concluir.IsSucess);
+        Assert.True(reverter.IsSucess);
+        Assert.True(excluir.IsSucess);
+        Assert.Empty(repositorio.Itens);
+    }
+
+    [Fact]
     public async Task CentenasDeItens_MantemSeparacaoEAgregadosExatos()
     {
         var itens = Enumerable.Range(1, 400)
@@ -340,10 +368,14 @@ public class CompraPlanejadaLifecycleTests
     {
         public List<CompraPlanejada> Itens { get; } = [.. itens];
         public bool FalharAtualizacao { get; set; }
+        private readonly Dictionary<string, EstadoCompraPlanejada> _estadosPersistidos = itens.ToDictionary(
+            item => item.Id,
+            item => item.Estado);
 
         public Task<CompraPlanejada> Add(CompraPlanejada entity)
         {
             Itens.Add(entity);
+            _estadosPersistidos[entity.Id] = entity.Estado;
             return Task.FromResult(entity);
         }
 
@@ -356,6 +388,7 @@ public class CompraPlanejadaLifecycleTests
         public Task Delete(CompraPlanejada entity)
         {
             Itens.RemoveAll(item => item.Id == entity.Id);
+            _estadosPersistidos.Remove(entity.Id);
             return Task.CompletedTask;
         }
 
@@ -378,8 +411,17 @@ public class CompraPlanejadaLifecycleTests
             => AtualizarSeEstado(entity, EstadoCompraPlanejada.Pendente);
 
         public Task<bool> AtualizarSeEstado(CompraPlanejada entity, EstadoCompraPlanejada estadoEsperado)
-            => Task.FromResult(!FalharAtualizacao && Itens.Any(item =>
-                item.Id == entity.Id && item.UsuarioId == entity.UsuarioId));
+        {
+            var podeAtualizar = !FalharAtualizacao
+                && Itens.Any(item => item.Id == entity.Id && item.UsuarioId == entity.UsuarioId)
+                && _estadosPersistidos.TryGetValue(entity.Id, out var estadoPersistido)
+                && estadoPersistido == estadoEsperado;
+
+            if (podeAtualizar)
+                _estadosPersistidos[entity.Id] = entity.Estado;
+
+            return Task.FromResult(podeAtualizar);
+        }
 
         public Task<List<CompraPlanejada>> GetPendentes(string usuarioId)
             => Task.FromResult(Itens

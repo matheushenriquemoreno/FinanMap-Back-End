@@ -446,10 +446,13 @@ public class CompraPlanejadaServiceTests
     {
         public List<CompraPlanejada> Itens { get; } = [];
         public bool FalharAtualizacao { get; set; }
+        private readonly Dictionary<string, EstadoCompraPlanejada> _estadosPersistidos = [];
 
         public CompraPlanejadaRepositoryFake(params CompraPlanejada[] itens)
         {
             Itens.AddRange(itens);
+            foreach (var item in itens)
+                _estadosPersistidos[item.Id] = item.Estado;
         }
 
         public Task<CompraPlanejada> Add(CompraPlanejada entity)
@@ -458,6 +461,7 @@ public class CompraPlanejadaServiceTests
                 entity.Id = Guid.NewGuid().ToString("N");
 
             Itens.Add(entity);
+            _estadosPersistidos[entity.Id] = entity.Estado;
             return Task.FromResult(entity);
         }
 
@@ -470,6 +474,7 @@ public class CompraPlanejadaServiceTests
         public Task Delete(CompraPlanejada entity)
         {
             Itens.RemoveAll(item => item.Id == entity.Id);
+            _estadosPersistidos.Remove(entity.Id);
             return Task.CompletedTask;
         }
 
@@ -492,9 +497,17 @@ public class CompraPlanejadaServiceTests
             => AtualizarSeEstado(entity, EstadoCompraPlanejada.Pendente);
 
         public Task<bool> AtualizarSeEstado(CompraPlanejada entity, EstadoCompraPlanejada estadoEsperado)
-            => Task.FromResult(!FalharAtualizacao && Itens.Any(item =>
-                item.Id == entity.Id
-                && item.UsuarioId == entity.UsuarioId));
+        {
+            var podeAtualizar = !FalharAtualizacao
+                && Itens.Any(item => item.Id == entity.Id && item.UsuarioId == entity.UsuarioId)
+                && _estadosPersistidos.TryGetValue(entity.Id, out var estadoPersistido)
+                && estadoPersistido == estadoEsperado;
+
+            if (podeAtualizar)
+                _estadosPersistidos[entity.Id] = entity.Estado;
+
+            return Task.FromResult(podeAtualizar);
+        }
 
         public Task<List<CompraPlanejada>> GetPendentes(string usuarioId)
             => Task.FromResult(Itens

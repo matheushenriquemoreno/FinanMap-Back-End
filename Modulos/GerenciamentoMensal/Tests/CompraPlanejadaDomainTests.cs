@@ -88,4 +88,18 @@ public class CompraPlanejadaDomainTests
 
         Assert.Equal(0.01m, compra.ValorEstimado);
     }
+
+    [Fact]
+    public void VincularDespesaDuasVezes_LancaErroENaoSubstituiVinculo()
+    {
+        var compra = new CompraPlanejada(
+            "usuario-1", "Produto", 10m, PrioridadeCompraPlanejada.Media);
+        compra.MarcarComoComprado(9m, DateTime.UtcNow.Date);
+        compra.VincularDespesa("despesa-1");
+
+        var exception = Assert.Throws<DomainValidatorException>(() => compra.VincularDespesa("despesa-2"));
+
+        Assert.Contains("Item já possui uma despesa vinculada.", exception.Errors);
+        Assert.Equal("despesa-1", compra.DespesaId);
+    }
 }

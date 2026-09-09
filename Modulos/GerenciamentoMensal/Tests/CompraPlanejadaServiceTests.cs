@@ -97,6 +97,90 @@ public class CompraPlanejadaServiceTests
         Assert.Empty(repositorio.Itens);
     }
 
+    [Fact]
+    public async Task AtualizarPendente_AlteraCamposEPreservaIdentidadeEstadoEData()
+    {
+        var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-1" };
+        var compra = new CompraPlanejada(
+            "usuario-1", "Produto antigo", 10m, PrioridadeCompraPlanejada.Baixa, "Descrição antiga")
+        {
+            Id = "compra-1"
+        };
+        var dataCriacao = compra.DataCriacao;
+        var repositorio = new CompraPlanejadaRepositoryFake(compra);
+        var service = new CompraPlanejadaService(repositorio, new UsuarioLogadoFake(usuario));
+
+        var resultado = await service.Atualizar(new UpdateCompraPlanejadaDTO
+        {
+            Id = "compra-1",
+            Nome = "Produto novo",
+            ValorEstimado = 25.50m,
+            Prioridade = PrioridadeCompraPlanejada.Alta,
+            Descricao = "Descrição nova",
+            LinksLojas =
+            [
+                new() { Url = "https://loja.example/produto", NomeLoja = "Loja" }
+            ]
+        });
+
+        Assert.True(resultado.IsSucess);
+        Assert.Equal("compra-1", compra.Id);
+        Assert.Equal(EstadoCompraPlanejada.Pendente, compra.Estado);
+        Assert.Equal(dataCriacao, compra.DataCriacao);
+        Assert.Equal("Produto novo", compra.Nome);
+        Assert.Equal(25.50m, compra.ValorEstimado);
+        Assert.Single(compra.LinksLojas);
+    }
+
+    [Fact]
+    public async Task AtualizarComDadosInvalidos_NaoMudaOItem()
+    {
+        var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-1" };
+        var compra = new CompraPlanejada(
+            "usuario-1", "Produto", 10m, PrioridadeCompraPlanejada.Media)
+        {
+            Id = "compra-1"
+        };
+        var repositorio = new CompraPlanejadaRepositoryFake(compra);
+        var service = new CompraPlanejadaService(repositorio, new UsuarioLogadoFake(usuario));
+
+        var resultado = await service.Atualizar(new UpdateCompraPlanejadaDTO
+        {
+            Id = "compra-1",
+            Nome = "",
+            ValorEstimado = 99m,
+            Prioridade = PrioridadeCompraPlanejada.Alta
+        });
+
+        Assert.True(resultado.IsFailure);
+        Assert.Equal("Produto", compra.Nome);
+        Assert.Equal(10m, compra.ValorEstimado);
+        Assert.Equal(PrioridadeCompraPlanejada.Media, compra.Prioridade);
+    }
+
+    [Fact]
+    public async Task AtualizarItemDeOutroContexto_RetornaNotFound()
+    {
+        var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-1" };
+        var repositorio = new CompraPlanejadaRepositoryFake(new CompraPlanejada(
+            "usuario-2", "Produto", 10m, PrioridadeCompraPlanejada.Media)
+        {
+            Id = "compra-2"
+        });
+        var service = new CompraPlanejadaService(repositorio, new UsuarioLogadoFake(usuario));
+
+        var resultado = await service.Atualizar(new UpdateCompraPlanejadaDTO
+        {
+            Id = "compra-2",
+            Nome = "Alteração",
+            ValorEstimado = 10m,
+            Prioridade = PrioridadeCompraPlanejada.Media
+        });
+
+        Assert.True(resultado.IsFailure);
+        Assert.Equal(TypeError.NotFound, resultado.Error.GetType());
+    }
+
     private sealed class UsuarioLogadoFake(
         Usuario usuario,
         string? contexto = null,
@@ -113,6 +197,11 @@ public class CompraPlanejadaServiceTests
     private sealed class CompraPlanejadaRepositoryFake : ICompraPlanejadaRepository
     {
         public List<CompraPlanejada> Itens { get; } = [];
+
+        public CompraPlanejadaRepositoryFake(params CompraPlanejada[] itens)
+        {
+            Itens.AddRange(itens);
+        }
 
         public Task<CompraPlanejada> Add(CompraPlanejada entity)
         {

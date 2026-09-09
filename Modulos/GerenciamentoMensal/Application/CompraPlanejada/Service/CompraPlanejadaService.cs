@@ -63,6 +63,41 @@ public class CompraPlanejadaService : ICompraPlanejadaService
         });
     }
 
+    public async Task<Result<CompraPlanejadaResponseDTO>> Atualizar(UpdateCompraPlanejadaDTO updateDTO)
+    {
+        if (!PodeEditar())
+            return Result.Failure<CompraPlanejadaResponseDTO>(
+                Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
+        var compra = await _repository.GetById(updateDTO.Id, _usuarioLogado.IdContextoDados);
+        if (compra is null)
+            return Result.Failure<CompraPlanejadaResponseDTO>(
+                Error.NotFound("Compra planejada informada não existe."));
+
+        try
+        {
+            var links = updateDTO.LinksLojas?
+                .Select(link => new LinkLojaCompraPlanejada(link.Url, link.NomeLoja))
+                .ToList() ?? [];
+
+            compra.Atualizar(
+                updateDTO.Nome,
+                updateDTO.ValorEstimado,
+                updateDTO.Prioridade,
+                updateDTO.Descricao,
+                links);
+
+            await _repository.Update(compra);
+
+            return Result.Success(CompraPlanejadaResponseDTO.Mapear(compra));
+        }
+        catch (DomainValidatorException exception)
+        {
+            return Result.Failure<CompraPlanejadaResponseDTO>(
+                Error.Validation(string.Join(" ", exception.Errors)));
+        }
+    }
+
     private bool PodeEditar()
     {
         return !_usuarioLogado.EmModoCompartilhado

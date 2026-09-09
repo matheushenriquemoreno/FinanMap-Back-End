@@ -51,13 +51,16 @@ public class CompraPlanejada : EntityBase
         if (Estado != EstadoCompraPlanejada.Pendente)
             throw new DomainValidatorException("Somente itens pendentes podem ser alterados.");
 
-        Nome = nome?.Trim();
+        var novoNome = nome?.Trim();
+        var novosLinks = linksLojas?.ToList() ?? [];
+
+        ValidarDados(novoNome, valorEstimado, prioridade, novosLinks);
+
+        Nome = novoNome;
         ValorEstimado = valorEstimado;
         Prioridade = prioridade;
         Descricao = descricao?.Trim();
-        LinksLojas = linksLojas?.ToList() ?? [];
-
-        ValidarDados();
+        LinksLojas = novosLinks;
     }
 
     public void MarcarComoComprado(decimal valorReal, DateTime dataCompra)
@@ -104,17 +107,24 @@ public class CompraPlanejada : EntityBase
     }
 
     private void ValidarDados()
+        => ValidarDados(Nome, ValorEstimado, Prioridade, LinksLojas);
+
+    private void ValidarDados(
+        string nome,
+        decimal valorEstimado,
+        PrioridadeCompraPlanejada prioridade,
+        IEnumerable<LinkLojaCompraPlanejada> linksLojas)
     {
         var validator = DomainValidator.Create();
 
         validator.Validar(() => string.IsNullOrWhiteSpace(UsuarioId), "Id do proprietário é obrigatório.");
-        validator.Validar(() => string.IsNullOrWhiteSpace(Nome), "Nome da compra é obrigatório.");
-        validator.Validar(() => ValorEstimado <= 0, "Valor estimado deve ser maior que zero.");
+        validator.Validar(() => string.IsNullOrWhiteSpace(nome), "Nome da compra é obrigatório.");
+        validator.Validar(() => valorEstimado <= 0, "Valor estimado deve ser maior que zero.");
         validator.Validar(
-            () => !System.Enum.IsDefined(typeof(PrioridadeCompraPlanejada), Prioridade),
+            () => !System.Enum.IsDefined(typeof(PrioridadeCompraPlanejada), prioridade),
             "Prioridade da compra é inválida.");
         validator.Validar(
-            () => LinksLojas.Any(link => link is null),
+            () => linksLojas.Any(link => link is null),
             "A lista de links da loja contém item inválido.");
 
         validator.LancarExceptionSePossuiErro();

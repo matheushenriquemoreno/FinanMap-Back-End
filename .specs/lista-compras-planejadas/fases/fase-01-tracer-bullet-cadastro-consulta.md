@@ -104,7 +104,7 @@ Expor criação e consulta no grupo protegido `/api/compras-planejadas`, registr
 | Tarefa | Status | Evidência |
 |--------|--------|-----------|
 | T01 | Concluída | `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore --filter FullyQualifiedName~CompraPlanejadaDomainTests` — 9 testes aprovados. |
-| T02 | Pendente | — |
+| T02 | Concluída | `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln --no-restore` — build da solução aprovado; mapping e índice composto adicionados. Smoke Mongo pendente de ambiente. |
 | T03 | Pendente | — |
 | T04 | Pendente | — |
 | T05 | Pendente | — |

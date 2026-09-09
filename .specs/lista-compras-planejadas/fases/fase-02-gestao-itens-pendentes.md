@@ -91,5 +91,5 @@ Cobrir o CRUD da fase com testes focados de domínio e aplicação, usando fakes
 |--------|--------|-----------|
 | T06 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — atualização e validações aprovadas. |
 | T07 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — exclusão contextual, repetição e total aprovados. |
-| T08 | Pendente | — |
+| T08 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — falhas de validação de campos e links retornam `Result.Validation` sem mutação. |
 | T09 | Pendente | — |

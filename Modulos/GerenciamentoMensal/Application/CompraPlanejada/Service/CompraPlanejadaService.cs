@@ -29,9 +29,7 @@ public class CompraPlanejadaService : ICompraPlanejadaService
 
         try
         {
-            var links = createDTO.LinksLojas?
-                .Select(link => new LinkLojaCompraPlanejada(link.Url, link.NomeLoja))
-                .ToList() ?? [];
+            var links = CriarLinks(createDTO.LinksLojas);
 
             var compra = new Domain.Entity.CompraPlanejada(
                 _usuarioLogado.IdContextoDados,
@@ -76,9 +74,7 @@ public class CompraPlanejadaService : ICompraPlanejadaService
 
         try
         {
-            var links = updateDTO.LinksLojas?
-                .Select(link => new LinkLojaCompraPlanejada(link.Url, link.NomeLoja))
-                .ToList() ?? [];
+            var links = CriarLinks(updateDTO.LinksLojas);
 
             compra.Atualizar(
                 updateDTO.Nome,
@@ -120,5 +116,17 @@ public class CompraPlanejadaService : ICompraPlanejadaService
     {
         return !_usuarioLogado.EmModoCompartilhado
             || _usuarioLogado.PermissaoAtual == NivelPermissao.Editar;
+    }
+
+    private static List<LinkLojaCompraPlanejada> CriarLinks(
+        IEnumerable<CompraPlanejadaLinkDTO> links)
+    {
+        return links?.Select(link =>
+        {
+            if (link is null)
+                throw new DomainValidatorException("A lista de links da loja contém item inválido.");
+
+            return new LinkLojaCompraPlanejada(link.Url, link.NomeLoja);
+        }).ToList() ?? [];
     }
 }

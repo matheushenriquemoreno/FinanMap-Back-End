@@ -31,7 +31,7 @@ Cada fase deve ser executada isoladamente e aprovada por `review` antes da ativa
 | T05 | 01 | Concluída | `dotnet build ... --no-restore` — endpoints `POST`/`GET /api/compras-planejadas` publicados, protegidos e incluídos no OpenAPI; smoke Mongo pendente. |
 | T06 | 02 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — atualização e validações aprovadas. |
 | T07 | 02 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — exclusão contextual, repetição e total aprovados. |
-| T08 | 02 | Pendente | — |
+| T08 | 02 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — validações de campos/links e falhas sem mutação aprovadas. |
 | T09 | 02 | Pendente | — |
 | T10 | 03 | Pendente | — |
 | T11 | 03 | Pendente | — |

@@ -159,6 +159,36 @@ public class CompraPlanejadaServiceTests
     }
 
     [Fact]
+    public async Task AtualizarComLinkInvalido_NaoMudaOItemNemConfirmaSucesso()
+    {
+        var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-1" };
+        var compra = new CompraPlanejada(
+            "usuario-1", "Produto", 10m, PrioridadeCompraPlanejada.Media)
+        {
+            Id = "compra-1"
+        };
+        var repositorio = new CompraPlanejadaRepositoryFake(compra);
+        var service = new CompraPlanejadaService(repositorio, new UsuarioLogadoFake(usuario));
+
+        var resultado = await service.Atualizar(new UpdateCompraPlanejadaDTO
+        {
+            Id = "compra-1",
+            Nome = "Produto novo",
+            ValorEstimado = 99m,
+            Prioridade = PrioridadeCompraPlanejada.Alta,
+            LinksLojas =
+            [
+                new() { Url = "ftp://loja.example/produto", NomeLoja = "Loja" }
+            ]
+        });
+
+        Assert.True(resultado.IsFailure);
+        Assert.Equal("Produto", compra.Nome);
+        Assert.Equal(10m, compra.ValorEstimado);
+        Assert.Equal(PrioridadeCompraPlanejada.Media, compra.Prioridade);
+    }
+
+    [Fact]
     public async Task AtualizarItemDeOutroContexto_RetornaNotFound()
     {
         var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-1" };

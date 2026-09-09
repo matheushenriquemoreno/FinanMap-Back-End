@@ -77,6 +77,60 @@ public class CompraPlanejadaServiceTests
     }
 
     [Fact]
+    public async Task AdicionarComLinkNulo_RetornaValidationENaoPersiste()
+    {
+        var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-1" };
+        var repositorio = new CompraPlanejadaRepositoryFake();
+        var service = new CompraPlanejadaService(repositorio, new UsuarioLogadoFake(usuario));
+
+        var resultado = await service.Adicionar(new CreateCompraPlanejadaDTO
+        {
+            Nome = "Produto",
+            ValorEstimado = 10m,
+            Prioridade = PrioridadeCompraPlanejada.Baixa,
+            LinksLojas = [null!]
+        });
+
+        Assert.True(resultado.IsFailure);
+        Assert.Equal(TypeError.Validation, resultado.Error.GetType());
+        Assert.Empty(repositorio.Itens);
+    }
+
+    [Fact]
+    public async Task ListarPendentes_SemItensRetornaColecaoVaziaETotalZero()
+    {
+        var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-1" };
+        var service = new CompraPlanejadaService(
+            new CompraPlanejadaRepositoryFake(),
+            new UsuarioLogadoFake(usuario));
+
+        var resultado = await service.ListarPendentes();
+
+        Assert.True(resultado.IsSucess);
+        Assert.Empty(resultado.Value.Itens);
+        Assert.Equal(0m, resultado.Value.TotalEstimado);
+    }
+
+    [Fact]
+    public async Task ListarPendentes_IsolaItensDeOutroProprietario()
+    {
+        var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-1" };
+        var proprio = new CompraPlanejada(
+            "usuario-1", "Próprio", 10m, PrioridadeCompraPlanejada.Media);
+        var alheio = new CompraPlanejada(
+            "usuario-2", "Alheio", 90m, PrioridadeCompraPlanejada.Alta);
+        var service = new CompraPlanejadaService(
+            new CompraPlanejadaRepositoryFake(proprio, alheio),
+            new UsuarioLogadoFake(usuario));
+
+        var resultado = await service.ListarPendentes();
+
+        Assert.Single(resultado.Value.Itens);
+        Assert.Equal("Próprio", resultado.Value.Itens[0].Nome);
+        Assert.Equal(10m, resultado.Value.TotalEstimado);
+    }
+
+    [Fact]
     public async Task AdicionarEmContextoSomenteVisualizacao_RetornaForbidden()
     {
         var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-2" };
@@ -269,6 +323,27 @@ public class CompraPlanejadaServiceTests
 
         Assert.True(resultado.IsFailure);
         Assert.Equal(TypeError.NotFound, resultado.Error.GetType());
+    }
+
+    [Fact]
+    public async Task ListarPendentes_PreservaOrdemDePrioridadeERecencia()
+    {
+        var usuario = new Usuario("Usuário Teste", "teste@finanmap.com") { Id = "usuario-1" };
+        var altaAntiga = new CompraPlanejada(
+            "usuario-1", "Alta antiga", 10m, PrioridadeCompraPlanejada.Alta);
+        await Task.Delay(2);
+        var altaRecente = new CompraPlanejada(
+            "usuario-1", "Alta recente", 20m, PrioridadeCompraPlanejada.Alta);
+        var media = new CompraPlanejada(
+            "usuario-1", "Media", 30m, PrioridadeCompraPlanejada.Media);
+        var repositorio = new CompraPlanejadaRepositoryFake(altaAntiga, altaRecente, media);
+        var service = new CompraPlanejadaService(repositorio, new UsuarioLogadoFake(usuario));
+
+        var resultado = await service.ListarPendentes();
+
+        Assert.Equal(
+            ["Alta recente", "Alta antiga", "Media"],
+            resultado.Value.Itens.Select(item => item.Nome).ToArray());
     }
 
     private sealed class UsuarioLogadoFake(

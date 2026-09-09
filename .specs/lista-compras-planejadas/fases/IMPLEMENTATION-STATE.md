@@ -16,7 +16,7 @@ Cada fase deve ser executada isoladamente e aprovada por `review` antes da ativa
 | #  | Fase | Arquivo | Status | Concluída em |
 |----|------|---------|--------|--------------|
 | 01 | Tracer bullet de cadastro e consulta | fases/fase-01-tracer-bullet-cadastro-consulta.md | Concluída | 2026-09-09 |
-| 02 | Gestão dos itens pendentes | fases/fase-02-gestao-itens-pendentes.md | Em execução | — |
+| 02 | Gestão dos itens pendentes | fases/fase-02-gestao-itens-pendentes.md | Concluída | 2026-09-09 |
 | 03 | Ciclo da compra e integração com despesas | fases/fase-03-ciclo-compra-despesas.md | Pendente | — |
 | 04 | Compartilhamento, desempenho e robustez | fases/fase-04-compartilhamento-robustez.md | Pendente | — |
 
@@ -32,7 +32,7 @@ Cada fase deve ser executada isoladamente e aprovada por `review` antes da ativa
 | T06 | 02 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — atualização e validações aprovadas. |
 | T07 | 02 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — exclusão contextual, repetição e total aprovados. |
 | T08 | 02 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — validações de campos/links e falhas sem mutação aprovadas. |
-| T09 | 02 | Pendente | — |
+| T09 | 02 | Concluída | `dotnet test ...` — 47 aprovados; regressão completa da Fase 02 consolidada. |
 | T10 | 03 | Pendente | — |
 | T11 | 03 | Pendente | — |
 | T12 | 03 | Pendente | — |

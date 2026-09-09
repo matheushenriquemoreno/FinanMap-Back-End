@@ -5,8 +5,9 @@
 | Created      | 2026-09-09 |
 | Last Updated | 2026-09-09 |
 
-**Escopo revisado:** fase 01
-**Versão da avaliação:** 1
+**Escopo revisado:** Fase 01 — tracer bullet de cadastro e consulta
+**Versão da avaliação:** 2
+**Snapshot revisado:** `da6ca4d`
 
 ## Artefatos analisados
 
@@ -14,75 +15,61 @@
 - Plano: `.specs/lista-compras-planejadas/IMPLEMENTATION-PLAN.md` (Aprovado).
 - Fase: `.specs/lista-compras-planejadas/fases/fase-01-tracer-bullet-cadastro-consulta.md`.
 - Estado: `.specs/lista-compras-planejadas/fases/IMPLEMENTATION-STATE.md`.
-- Design técnico: dispensado pelo plano.
-- Convenções: `CONTEXT.md`, camadas Domain/Application/Infra.data/WebApi, Result e IUsuarioLogado.
+- Código da feature nas camadas Domain, Application, Infra.data e WebApi.
+- Reavaliação independente somente leitura: achados A-01/A-02 da versão anterior foram confrontados com o HEAD atual.
 
-## Resumo executivo
-
-A Fase 01 entrega o tracer bullet completo para cadastro e consulta de pendentes,
-com entidade validada, persistência Mongo, serviço de aplicação e endpoints
-protegidos. A suíte completa possui 36 testes aprovados e a solução compila.
-O format-check limitado à feature passou; o format-check global já falha por
-whitespace preexistente fora do escopo. O veredito é aprovado com ressalva
-operacional porque o smoke autenticado e a inspeção real dos índices não puderam
-ser executados sem MongoDB local/Docker.
-
-## Resultado das verificações obrigatórias
+## Verificações
 
 | Verificação | Resultado | Evidência |
 |-------------|-----------|-----------|
-| Requisitos da fase | Atendida com ressalva | Matriz abaixo; persistência real não foi exercitada. |
-| Critérios de aceitação | Atendida com ressalva | Testes de domínio/aplicação e inspeção dos endpoints; smoke Mongo pendente. |
-| Testes | Atendida | `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore` — 36 aprovados. |
-| Build | Atendida | `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln --no-restore` — 0 erros. |
-| Formato | Atendida com ressalva | `dotnet format ... --verify-no-changes --include` dos arquivos da feature passou; o global acusa arquivos preexistentes fora do escopo. |
-| Complexidade ciclomática | Atendida | Inspeção manual: `CompraPlanejada.ValidarDados` 6, `CompraPlanejadaService.Adicionar` 5, `Repository.ListarPorEstado` 1; todas abaixo do limite 10. |
-| Complexidade algorítmica | Atendida com ressalva | Consulta Mongo filtra/ordena no banco e o serviço soma em O(N); a lista inteira é materializada, conforme plano sem paginação obrigatória. Massa real não foi medida. |
-| Design técnico | Atendida | Camadas e abstrações existentes foram preservadas; design foi dispensado no plano. |
-| Plano e escopo | Atendida | T01–T05 concluídas; nenhuma funcionalidade fora do tracer bullet foi adicionada. |
-| Padrões e manutenibilidade | Atendida | DTOs separados, Result, IUsuarioLogado, repository base, mapping automático e nomes de domínio existentes. |
-| Riscos operacionais | Achado A-01 | Docker não conecta e não há serviço/comando Mongo local disponível. |
+| Requisitos e critérios da Fase 01 | Atendidos com ressalva | Matriz abaixo; persistência real não foi exercitada. |
+| Testes | Atendida | `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore` — 47 aprovados. |
+| Testes da aplicação | Atendida | `CompraPlanejadaServiceTests` — 15 aprovados; inclui nulo em links, vazio, isolamento, ordenação, CRUD e falhas sem mutação. |
+| Testes do domínio | Atendida | `CompraPlanejadaDomainTests` — 9 aprovados. |
+| Build | Atendida | `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln --no-restore` — 0 erros; warnings preexistentes registrados no ambiente. |
+| Formato | Atendida com ressalva | Format-check limitado à feature passou; o global acusa whitespace preexistente fora do escopo. |
+| Complexidade | Atendida | Inspeção manual: funções da feature permanecem abaixo do limite 10; consulta e soma são O(N), sem I/O por item. |
+| Design e escopo | Atendida | Camadas, `Result`, `IUsuarioLogado` e mapping automático existentes foram preservados; design técnico dispensado pelo plano. |
 
 ## Matriz de rastreabilidade
 
-| Requisito | Código | Teste | Evidência | Status |
-|-----------|--------|-------|-----------|--------|
-| LCP-BE-01 | `Domain/CompraPlanejada/Entity/CompraPlanejada.cs`, `Application/CompraPlanejada/Service/CompraPlanejadaService.cs`, `WebApi/Controllers/CompraPlanejada.cs` | `CompraPlanejadaServiceTests.AdicionarEListar_MantemLinksETotalEstimado` | Suíte e build aprovados | Comprovado por código/teste; persistência real pendente |
-| LCP-BE-04 | `LinkLojaCompraPlanejada.cs`, `CompraPlanejadaResponseDTO.cs` | `CompraPlanejadaDomainTests.CriarComDadosValidos_MantemDadosEPermanecePendente` | 2 links preservados no serviço | Comprovado |
-| LCP-BE-05 | `CompraPlanejadaService.ListarPendentes` | `ListarPendentes_SomaValoresDecimaisSemPerda` | Total `0.30m` aprovado | Comprovado |
-| LCP-BE-06 | `CompraPlanejadaRepository.ListarPorEstado` | Ordenação coberta por inspeção do filtro/sort; massa Mongo não executada | Sort desc por prioridade e data de criação | Com ressalva |
-| EXPECT-BE-01 | Entidade e DTO usam `decimal` | `CriarComEstimativaDecimal_PreservaPrecisao`, `ListarPendentes_SomaValoresDecimaisSemPerda` | Testes aprovados | Comprovado |
-| EXPECT-BE-03 | Índice composto e filtro por contexto/estado | — | Mapping compilado; índice real não inspecionado | Com ressalva |
-| EXPECT-BE-04 | Serviço retorna `Forbidden`/`Validation`; endpoint usa `MapResult` | `AdicionarEmContextoSomenteVisualizacao_RetornaForbidden`, dados inválidos | Testes aprovados | Comprovado |
-| EXPECT-BE-05 | Validação antes de `Add` e nenhum estado parcial em entrada inválida | `AdicionarComDadosInvalidos_NaoPersisteENaoConfirmaSucesso` | Repositório fake permanece vazio | Comprovado para falha de validação |
+| Requisito | Evidência objetiva | Status |
+|-----------|--------------------|--------|
+| LCP-BE-01 — cadastro | Entidade, serviço e endpoints protegidos; `AdicionarEListar_MantemLinksETotalEstimado` | Comprovado por código/teste; Mongo real pendente |
+| LCP-BE-04 — múltiplos links | DTO, value object, mapping e teste com dois links | Comprovado por código/teste; BSON real pendente |
+| LCP-BE-05 — total estimado | Soma decimal e `ListarPendentes_SemItensRetornaColecaoVaziaETotalZero` | Comprovado |
+| LCP-BE-06 — prioridade/data | Sort do repositório e `ListarPendentes_PreservaOrdemDePrioridadeERecencia` | Comprovado por código/teste; Mongo real pendente |
+| EXPECT-BE-01 — precisão monetária | `decimal`, testes de estimativa e soma `0.30m` | Comprovado por código/teste |
+| EXPECT-BE-03 — centenas/índice | Índice composto por contexto, estado, prioridade e data; materialização linear | Com ressalva; índice real e massa não medidos |
+| EXPECT-BE-04 — erros distinguíveis | Validation para dados inválidos, Forbidden para visualizador, teste de link nulo | Comprovado |
+| EXPECT-BE-05 — sem confirmação parcial | Construção/validação ocorre antes de `Add`; testes mantêm fake vazio ou item inalterado | Comprovado para falhas exercitadas |
 
 ## Achados
 
-| ID | Severidade | Achado | Evidência | Impacto | Recomendação | Encaminhamento |
-|----|-----------|--------|-----------|---------|--------------|----------------|
-| A-01 | Baixo | Smoke autenticado e inspeção de índices Mongo não foram executados. | `docker ps` falha por daemon indisponível; nenhum serviço `mongo`/`mongosh` local encontrado. | Persistência, serialização e índice ainda não têm evidência de execução neste ambiente. | Reexecutar o smoke quando MongoDB local estiver disponível, antes da publicação. | `implement`/operação local |
+| ID | Severidade | Achado | Encaminhamento |
+|----|-----------|--------|----------------|
+| A-01 | Baixo, operacional | Smoke autenticado, persistência/serialização BSON e inspeção real dos índices Mongo não foram executados porque Docker não conecta e não há Mongo local disponível. | Reexecutar em ambiente com Mongo antes da publicação. |
+| A-02 | Processo | O branch contém commits da Fase 02 antes da conclusão deste gate retrospectivo; portanto, a ordem formal F01 → review → F02 não foi respeitada neste ciclo. | Manter a ressalva no histórico e não iniciar a Fase 03 sem review aprovado da Fase 02. |
 
-## Riscos residuais e ressalvas aceitas
+## Correções verificadas desde a versão 1
 
-- Ressalva operacional A-01: a verificação integrada depende de MongoDB local;
-  o código e os testes unitários permanecem validados, mas a evidência de
-  persistência real fica pendente para o ambiente com banco disponível.
-- O format-check global acusa apenas arquivos preexistentes fora da feature;
-  não foi aplicado formatter amplo para preservar escopo.
+- `CompraPlanejadaService` trata item nulo em `linksLojas` como `Validation`, antes de persistir.
+- A regressão automatizada cobre consulta vazia, total zero, isolamento entre proprietários e ordenação por prioridade/recência.
+- A suíte atual passou com 47 testes.
+
+## Limitações e riscos residuais
+
+- Docker falha por daemon indisponível (`dockerDesktopLinuxEngine`); `localhost:27017` também não está acessível.
+- O format-check global acusa somente arquivos preexistentes fora da feature; o format-check limitado passou.
+- A ausência de paginação continua risco residual para volumes além de centenas de itens e está prevista na Fase 04.
 
 ## Veredito
 
-**Veredito:** Aprovado com ressalvas
+**Aprovado com ressalvas.**
 
-**Fundamentação:** não há achados altos ou bloqueadores; os requisitos do tracer
-bullet possuem implementação e testes proporcionais, com a limitação operacional
-explicitamente registrada para Mongo.
-
-## Próxima ação
-
-Prosseguir para a Fase 02 do back-end, mantendo A-01 como pendência de validação
-integrada antes do fechamento final/publicação.
+Os achados funcionais apontados na revisão anterior foram corrigidos e possuem cobertura objetiva. A aprovação é retrospectiva quanto à ordem de fases e condicionada ao smoke Mongo/HTTP em ambiente disponível antes da publicação. A Fase 02 exige review próprio antes de qualquer avanço para a Fase 03.
 
 ## Histórico de revisões anteriores
 
-Nenhuma avaliação anterior.
+- **Versão 1 — 2026-09-09:** `Aprovado com ressalvas` por avaliação local; posteriormente reprovada pela revisão independente por validação ausente para `linksLojas: [null]` e cobertura insuficiente de vazio/isolamento/ordenação.
+- **Versão 2 — 2026-09-09:** achados funcionais encerrados no snapshot `da6ca4d`; mantidas ressalvas operacional e processual.

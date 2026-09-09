@@ -7,7 +7,7 @@
 
 ## Fase ativa
 
-Fase 01 — Tracer bullet de cadastro e consulta.
+Fase 02 — Gestão dos itens pendentes; implementação concluída e review pendente.
 
 Cada fase deve ser executada isoladamente e aprovada por `review` antes da ativação da fase seguinte.
 
@@ -27,7 +27,7 @@ Cada fase deve ser executada isoladamente e aprovada por `review` antes da ativa
 | T01 | 01 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaDomainTests` — 9 aprovados; entidade, prioridade e links validados. |
 | T02 | 01 | Concluída | `dotnet build ... --no-restore` — solução aprovada; mapping/index composto adicionado. Smoke Mongo pendente de ambiente. |
 | T03 | 01 | Concluída | `dotnet build ... --no-restore` — repositório com filtro de contexto/estado e ordenação aprovado. Smoke Mongo pendente de ambiente. |
-| T04 | 01 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — 4 aprovados; DTO, contexto, links e total decimal validados. |
+| T04 | 01 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — 15 aprovados; DTO, contexto, links, total decimal, vazio, isolamento e ordenação validados. |
 | T05 | 01 | Concluída | `dotnet build ... --no-restore` — endpoints `POST`/`GET /api/compras-planejadas` publicados, protegidos e incluídos no OpenAPI; smoke Mongo pendente. |
 | T06 | 02 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — atualização e validações aprovadas. |
 | T07 | 02 | Concluída | `dotnet test ... --filter FullyQualifiedName~CompraPlanejadaServiceTests` — exclusão contextual, repetição e total aprovados. |

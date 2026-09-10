@@ -1,7 +1,7 @@
 # Fase 01 — Tracer bullet de cadastro e consulta
 
-| Status       | Concluída |
-|--------------|------------|
+| Status       | Concluída  |
+| ------------ | ---------- |
 | Created      | 2026-09-09 |
 | Last Updated | 2026-09-09 |
 
@@ -101,17 +101,17 @@ Expor criação e consulta no grupo protegido `/api/compras-planejadas`, registr
 
 ## Execução
 
-| Tarefa | Status | Evidência |
-|--------|--------|-----------|
-| T01 | Concluída | `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore --filter FullyQualifiedName~CompraPlanejadaDomainTests` — 9 testes aprovados. |
-| T02 | Concluída | `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln --no-restore` — build da solução aprovado; mapping e índice composto adicionados. Smoke Mongo pendente de ambiente. |
-| T03 | Concluída | `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln --no-restore` — repositório com filtro obrigatório de contexto, estado e ordenação aprovado. Smoke Mongo pendente de ambiente. |
-| T04 | Concluída | `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore --filter FullyQualifiedName~CompraPlanejadaServiceTests` — 15 testes aprovados; DTO, contexto, links, total decimal, vazio, isolamento e ordenação validados. |
-| T05 | Concluída | `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln --no-restore` — `POST`/`GET /api/compras-planejadas` publicados, protegidos e incluídos no OpenAPI; smoke autenticado requer Mongo/local. |
+| Tarefa | Status    | Evidência                                                                                                                                                                                                                              |
+| ------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T01    | Concluída | `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore --filter FullyQualifiedName~CompraPlanejadaDomainTests` — 9 testes aprovados.                                                                                 |
+| T02    | Concluída | `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln --no-restore` — build da solução aprovado; mapping e índice composto adicionados. Healthcheck Mongo integrado executado em Docker.                                      |
+| T03    | Concluída | `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln --no-restore` — repositório com filtro obrigatório de contexto, estado e ordenação aprovado. Persistência Mongo integrada verificada em Docker.                         |
+| T04    | Concluída | `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore --filter FullyQualifiedName~CompraPlanejadaServiceTests` — 15 testes aprovados; DTO, contexto, links, total decimal, vazio, isolamento e ordenação validados. |
+| T05    | Concluída | `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln --no-restore` — `POST`/`GET /api/compras-planejadas` publicados, protegidos e incluídos no OpenAPI; smoke autenticado requer Mongo/local.                               |
 
 ## Encerramento da fase
 
 - Gate completo: `dotnet test Modulos/GerenciamentoMensal/Tests/Tests.csproj --no-restore` — 47 testes aprovados.
 - Gate completo: `dotnet build Modulos/GerenciamentoMensal/FinancasPessoais.sln --no-restore` — build aprovado.
 - Format-check da feature: `dotnet format Modulos/GerenciamentoMensal/FinancasPessoais.sln --verify-no-changes --no-restore --include ...` — aprovado.
-- Limitação: o smoke autenticado e a inspeção de índices Mongo não foram executados porque o daemon Docker local não está disponível; o format-check global também encontra whitespace preexistente fora da feature.
+- Limitação residual: smoke autenticado, healthcheck, CORS e persistência Mongo foram executados em Docker; inspeção dedicada de índices permanece pendente. O format-check global também encontra whitespace preexistente fora da feature.

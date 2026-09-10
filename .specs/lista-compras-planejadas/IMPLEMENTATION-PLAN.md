@@ -1,7 +1,7 @@
 # Plano de Implementação — Lista de Compras Planejadas (Back-end)
 
 | Status       | Aprovado   |
-|--------------|------------|
+| ------------ | ---------- |
 | Created      | 2026-09-09 |
 | Last Updated | 2026-09-09 |
 
@@ -11,12 +11,12 @@ Design técnico: dispensado. Premissas no lugar: a feature seguirá as camadas j
 
 ## Histórico de atualizações
 
-| Data       | Alteração |
-|------------|-----------|
-| 2026-09-09 | Versão inicial criada a partir do PRD aprovado, incluindo a preservação da despesa ao excluir um item comprado. |
-| 2026-09-09 | Gate 3 aprovado pelo solicitante; plano liberado para execução futura pela skill `implement`. |
-| 2026-09-09 | Implementação das quatro fases concluída; Fase 01 e Fase 02 concluídas, Fases 03 e 04 aguardando review final independente. |
-| 2026-09-09 | Gate 5 aprovado com ressalvas operacionais; as quatro fases e 18 tarefas foram concluídas no escopo local. |
+| Data       | Alteração                                                                                                                                |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-09 | Versão inicial criada a partir do PRD aprovado, incluindo a preservação da despesa ao excluir um item comprado.                          |
+| 2026-09-09 | Gate 3 aprovado pelo solicitante; plano liberado para execução futura pela skill `implement`.                                            |
+| 2026-09-09 | Implementação das quatro fases concluída; review final independente e smoke autenticado integrado executados com ressalvas operacionais. |
+| 2026-09-09 | Gate 5 aprovado com ressalvas operacionais; as quatro fases e 18 tarefas foram concluídas no escopo local.                               |
 
 ## Objetivo geral da implementação
 
@@ -30,12 +30,12 @@ O contrato do back-end antecede a fase equivalente do front-end. Mudanças incom
 
 ## Fases
 
-| #  | Fase | Arquivo | Status |
-|----|------|---------|--------|
-| 01 | Tracer bullet de cadastro e consulta | [fase-01-tracer-bullet-cadastro-consulta.md](fases/fase-01-tracer-bullet-cadastro-consulta.md) | Concluída |
-| 02 | Gestão dos itens pendentes | [fase-02-gestao-itens-pendentes.md](fases/fase-02-gestao-itens-pendentes.md) | Concluída |
-| 03 | Ciclo da compra e integração com despesas | [fase-03-ciclo-compra-despesas.md](fases/fase-03-ciclo-compra-despesas.md) | Concluída |
-| 04 | Compartilhamento, desempenho e robustez | [fase-04-compartilhamento-robustez.md](fases/fase-04-compartilhamento-robustez.md) | Concluída |
+| #   | Fase                                      | Arquivo                                                                                        | Status    |
+| --- | ----------------------------------------- | ---------------------------------------------------------------------------------------------- | --------- |
+| 01  | Tracer bullet de cadastro e consulta      | [fase-01-tracer-bullet-cadastro-consulta.md](fases/fase-01-tracer-bullet-cadastro-consulta.md) | Concluída |
+| 02  | Gestão dos itens pendentes                | [fase-02-gestao-itens-pendentes.md](fases/fase-02-gestao-itens-pendentes.md)                   | Concluída |
+| 03  | Ciclo da compra e integração com despesas | [fase-03-ciclo-compra-despesas.md](fases/fase-03-ciclo-compra-despesas.md)                     | Concluída |
+| 04  | Compartilhamento, desempenho e robustez   | [fase-04-compartilhamento-robustez.md](fases/fase-04-compartilhamento-robustez.md)             | Concluída |
 
 ## Dependências e ordem entre as fases
 
@@ -55,14 +55,14 @@ Não há ciclos. No plano coordenado, cada fase de front-end depende da fase cor
 
 ## Cobertura de requisitos
 
-| Requisitos | Tarefas |
-|------------|---------|
-| `LCP-BE-01`, `LCP-BE-04`, `LCP-BE-05`, `LCP-BE-06` | `T01`–`T05` |
-| `LCP-BE-02`, `LCP-BE-03` | `T06`–`T09` |
-| `LCP-BE-07`–`LCP-BE-14`, `LCP-BE-17` | `T10`–`T16` |
-| `LCP-BE-15`, `LCP-BE-16` | `T17` |
+| Requisitos                                                     | Tarefas                          |
+| -------------------------------------------------------------- | -------------------------------- |
+| `LCP-BE-01`, `LCP-BE-04`, `LCP-BE-05`, `LCP-BE-06`             | `T01`–`T05`                      |
+| `LCP-BE-02`, `LCP-BE-03`                                       | `T06`–`T09`                      |
+| `LCP-BE-07`–`LCP-BE-14`, `LCP-BE-17`                           | `T10`–`T16`                      |
+| `LCP-BE-15`, `LCP-BE-16`                                       | `T17`                            |
 | `EXPECT-BE-01`, `EXPECT-BE-02`, `EXPECT-BE-04`, `EXPECT-BE-05` | `T01`, `T08`, `T10`, `T12`–`T18` |
-| `EXPECT-BE-03` | `T18` |
+| `EXPECT-BE-03`                                                 | `T18`                            |
 
 ## Riscos e verificações gerais
 
@@ -80,6 +80,6 @@ Não há ciclos. No plano coordenado, cada fase de front-end depende da fase cor
 
 ## Perguntas que bloqueiam a implementação
 
-| Pergunta | Por que bloqueia | Status |
-|----------|------------------|--------|
+| Pergunta | Por que bloqueia                                                                                                      | Status    |
+| -------- | --------------------------------------------------------------------------------------------------------------------- | --------- |
 | Nenhuma. | Os comportamentos necessários estão definidos no PRD aprovado; edição direta de comprado permanece fora desta versão. | Resolvida |

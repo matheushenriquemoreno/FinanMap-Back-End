@@ -321,7 +321,7 @@ public class CompraPlanejadaService : ICompraPlanejadaService
                 throw new DomainValidatorException("A lista de links da loja contém item inválido.");
 
             return new LinkLojaCompraPlanejada(link.Url, link.NomeLoja);
-            }).ToList() ?? [];
+        }).ToList() ?? [];
     }
 
     private static string ValidarConclusao(ConcluirCompraPlanejadaDTO dto)

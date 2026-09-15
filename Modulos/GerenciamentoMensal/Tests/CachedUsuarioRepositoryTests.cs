@@ -42,7 +42,7 @@ public class CachedUsuarioRepositoryTests
         // Act
         // Primeira chamada: Deve ser Cache Miss (chama repositório real)
         var result1 = await _cachedRepository.GetById(userId);
-        
+
         // Segunda chamada: Deve ser Cache Hit (não chama repositório real)
         var result2 = await _cachedRepository.GetById(userId);
 
@@ -64,7 +64,7 @@ public class CachedUsuarioRepositoryTests
         // Act
         // Primeira chamada: Deve ser Cache Miss
         var result1 = await _cachedRepository.GetByEmail(email);
-        
+
         // Segunda chamada: Deve ser Cache Hit
         var result2 = await _cachedRepository.GetByEmail(email);
 
@@ -101,7 +101,7 @@ public class CachedUsuarioRepositoryTests
         // Assert
         Assert.Same(usuario, getByIdResult);
         Assert.Same(usuario, getByEmailResult);
-        
+
         // Deve ter chamado o repositório real 2 vezes para cada método, já que o update limpou o cache
         Assert.Equal(2, _repositoryRealFake.GetByIdChamadas);
         Assert.Equal(2, _repositoryRealFake.GetByEmailChamadas);
@@ -133,7 +133,7 @@ public class CachedUsuarioRepositoryTests
     {
         public Dictionary<string, Usuario> UsuariosMap { get; } = new();
         public Dictionary<string, Usuario> UsuariosPorEmailMap { get; } = new();
-        
+
         public int GetByIdChamadas { get; private set; }
         public int GetByEmailChamadas { get; private set; }
 

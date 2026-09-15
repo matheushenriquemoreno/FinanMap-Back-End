@@ -90,7 +90,7 @@ public class CustoFixoLembreteService : ICustoFixoLembreteService
         }
 
         var usuarioIdsComNotificacao = await _usuarioRepository.FiltrarUsuariosComNotificacaoAtiva(usuarioIdsCandidatos);
-        
+
         if (!usuarioIdsComNotificacao.Any())
         {
             _logger.LogInformation("Todos os donos de custos fixos do dia {Dia} desativaram as notificações globais.", diaVencimentoBuscado);
@@ -129,9 +129,9 @@ public class CustoFixoLembreteService : ICustoFixoLembreteService
     }
 
     private async Task ProcessarEnvioDeLembretesAsync(
-        IEnumerable<IGrouping<string, Domain.Entity.CustoFixo>> custosAgrupados, 
+        IEnumerable<IGrouping<string, Domain.Entity.CustoFixo>> custosAgrupados,
         Dictionary<string, Usuario> usuariosDict,
-        DateTime dataReferencia, 
+        DateTime dataReferencia,
         TipoLembrete tipo)
     {
         foreach (var grupo in custosAgrupados)

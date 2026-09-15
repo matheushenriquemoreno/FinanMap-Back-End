@@ -1,4 +1,5 @@
 #nullable enable
+using Domain.Dashboard;
 using Domain.Dashboard.Models;
 using Domain.Entity;
 using Infra.Configure.Env;
@@ -286,39 +287,45 @@ namespace Infra.Data.Mongo.Repositorys
 
         private async Task<List<CategoriaDashboardModel>> ObterDistribuicaoPorCollectionDespesa(string usuarioId, int mesInicial, int anoInicial, int mesFinal, int anoFinal)
         {
-            var filterBase = CriarFiltroPeriodo<Despesa>(usuarioId, mesInicial, anoInicial, mesFinal, anoFinal);
-            var filter = Builders<Despesa>.Filter.And(
-                filterBase,
-                Builders<Despesa>.Filter.Eq(x => x.IdDespesaAgrupadora, null)
-            );
+            // A agrupadora é persistida com o valor total (próprio + filhas) e o vínculo
+            // IdDespesaAgrupadora é armazenado como texto simples (não ObjectId), por isso a
+            // contribuição de cada categoria é reconstruída em memória pela regra do domínio.
+            var filter = CriarFiltroPeriodo<Despesa>(usuarioId, mesInicial, anoInicial, mesFinal, anoFinal);
 
-            // Using BsonDocument pipeline to avoid mapping issues with Categoria property
+            var despesas = await _despesaCollection.Find(filter).ToListAsync();
+            var contribuicoes = DistribuicaoDespesaCategorias.Calcular(despesas);
+
+            if (contribuicoes.Count == 0)
+                return [];
+
+            // Using BsonDocument to avoid mapping issues with Categoria property
             var categoriaCollection = _despesaCollection.Database.GetCollection<BsonDocument>("Categoria");
 
-            var pipeline = new EmptyPipelineDefinition<Despesa>()
-                .Match(filter)
-                .Group(
-                    x => x.CategoriaId,
-                    g => new BsonDocument
-                    {
-                        { "CategoriaId", g.Key },
-                        { "Total", g.Sum(x => x.Valor) }
-                    }
-                )
-                .Lookup<Despesa, BsonDocument, BsonDocument, BsonDocument>(categoriaCollection, "CategoriaId", "_id", "CategoriaInfo")
-                .Unwind("CategoriaInfo")
-                .Project(new BsonDocument {
-                    { "Categoria", "$CategoriaInfo.Nome" },
-                    { "Total", "$Total" }
-                });
+            var categoriaIds = contribuicoes.Keys
+                .Select(id => ObjectId.TryParse(id, out var objectId) ? objectId : (ObjectId?)null)
+                .Where(id => id.HasValue)
+                .Select(id => id!.Value)
+                .ToList();
 
-            var groupResult = await _despesaCollection.Aggregate(pipeline).ToListAsync();
+            var categorias = await categoriaCollection
+                .Find(Builders<BsonDocument>.Filter.In("_id", categoriaIds))
+                .ToListAsync();
 
-            var resultModel = groupResult.Select(x => new
-            {
-                Categoria = x.GetValue("Categoria").AsString,
-                Total = x.GetValue("Total").AsDecimal
-            }).ToList();
+            var nomePorCategoria = categorias.ToDictionary(
+                documento => documento.GetValue("_id").AsObjectId.ToString(),
+                documento => documento.GetValue("Nome").AsString);
+
+            // Categorias não encontradas são descartadas, preservando o comportamento anterior.
+            var resultModel = contribuicoes
+                .Where(item => nomePorCategoria.ContainsKey(item.Key))
+                .Select(item => new
+                {
+                    Categoria = nomePorCategoria[item.Key],
+                    Total = item.Value
+                })
+                .OrderByDescending(x => x.Total)
+                .ThenBy(x => x.Categoria)
+                .ToList();
 
             var totalGeral = resultModel.Sum(x => x.Total);
 

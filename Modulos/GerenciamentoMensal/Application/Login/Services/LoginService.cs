@@ -157,7 +157,7 @@ public class LoginService : ILoginService
             if (usuario is not null)
             {
                 _logger.LogWarning("Tentativa de cadastro com e-mail ja existente: {Email}", usuarioDTO.Email);
-                return Result.Failure(Error.Validation("E-mail invalido para cadastro!"));
+                return Result.Failure(Error.Validation("E-mail já cadastrado!"));
             }
 
             usuario = new Usuario(usuarioDTO.Nome, usuarioDTO.Email);

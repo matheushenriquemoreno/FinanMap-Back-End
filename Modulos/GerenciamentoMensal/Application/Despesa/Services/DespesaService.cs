@@ -53,9 +53,11 @@ public class DespesaService : IDespesaService
             await _agrupamentoService.SincronizarAgrupadoraComFilhasPendentesAsync(contextoAgrupadora, [despesa]);
         }
 
-        await _repository.Add(despesa);
-
+        // A leitura do acumulado não pode ocorrer depois da inserção: se ela falhar,
+        // a chamada precisa terminar sem deixar uma despesa órfã para o consumidor.
         var reportAcumulado = await _acumuladoMensalReportRepository.Obter(despesa.Mes, despesa.Ano, _usuarioLogado.IdContextoDados);
+
+        await _repository.Add(despesa);
 
         ResultDespesaDTO rendimentoDTO = ObterDespesaDTO(despesa, reportAcumulado);
 

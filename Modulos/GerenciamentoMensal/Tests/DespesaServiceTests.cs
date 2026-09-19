@@ -16,6 +16,24 @@ namespace Tests;
 public class DespesaServiceTests
 {
     [Fact]
+    public async Task AdicionarQuandoLeituraDoAcumuladoFalha_NaoInsereDespesa()
+    {
+        var fixture = CriarFixtureLoteParcelado();
+        var service = fixture.CriarService(falharLeituraAcumulado: true);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.Adicionar(new CreateDespesaDTO
+        {
+            Ano = 2026,
+            Mes = 9,
+            Descricao = "Compra planejada",
+            Valor = 100m,
+            CategoriaId = fixture.Categoria.Id
+        }));
+
+        Assert.Equal(0, fixture.Repositorio.QuantidadeAdicionadas);
+    }
+
+    [Fact]
     public async Task AtualizarDespesaEmLoteAsync_DespesaParcelada_MantemDescricaoSemSufixoDaParcela()
     {
         var fixture = CriarFixtureLoteParcelado();
@@ -124,12 +142,12 @@ public class DespesaServiceTests
         public List<Despesa> Despesas { get; } = despesas;
         public DespesaRepositoryFake Repositorio { get; } = new(despesas);
 
-        public DespesaService CriarService()
+        public DespesaService CriarService(bool falharLeituraAcumulado = false)
         {
             return new DespesaService(
                 Repositorio,
                 new CategoriaRepositoryFake(Categoria),
-                new AcumuladoMensalReportRepositoryFake(),
+                new AcumuladoMensalReportRepositoryFake(falharLeituraAcumulado),
                 new UsuarioLogadoFake(usuario));
         }
     }
@@ -147,8 +165,13 @@ public class DespesaServiceTests
     private sealed class DespesaRepositoryFake(List<Despesa> despesas) : IDespesaRepository
     {
         public List<Despesa> DespesasAtualizadas { get; private set; } = [];
+        public int QuantidadeAdicionadas { get; private set; }
 
-        public Task<Despesa> Add(Despesa entity) => Task.FromResult(entity);
+        public Task<Despesa> Add(Despesa entity)
+        {
+            QuantidadeAdicionadas++;
+            return Task.FromResult(entity);
+        }
         public Task<List<Despesa>> Add(List<Despesa> entity) => Task.FromResult(entity);
         public Task Delete(Despesa entity) => Task.CompletedTask;
         public Task DeleteManyAsync(IEnumerable<Despesa> despesas) => Task.CompletedTask;
@@ -185,8 +208,14 @@ public class DespesaServiceTests
         public Task<Categoria> Update(Categoria entity) => Task.FromResult(entity);
     }
 
-    private sealed class AcumuladoMensalReportRepositoryFake : IAcumuladoMensalReportRepository
+    private sealed class AcumuladoMensalReportRepositoryFake(bool falhar = false) : IAcumuladoMensalReportRepository
     {
-        public Task<AcumuladoMensalReport> Obter(int mes, int ano, string idUsuario) => Task.FromResult<AcumuladoMensalReport>(null!);
+        public Task<AcumuladoMensalReport> Obter(int mes, int ano, string idUsuario)
+        {
+            if (falhar)
+                throw new InvalidOperationException("Falha simulada ao consultar acumulado.");
+
+            return Task.FromResult<AcumuladoMensalReport>(null!);
+        }
     }
 }

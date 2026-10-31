@@ -19,6 +19,7 @@ public class MetaFinanceiraMapping : IMongoMapping
             cm.MapMember(c => c.Categoria);
             cm.MapMember(c => c.UsuarioId);
             cm.MapMember(c => c.DataCriacao);
+            cm.MapMember(c => c.Arquivada);
             cm.MapMember(c => c.Contribuicoes);
         });
 

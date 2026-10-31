@@ -10,17 +10,19 @@ public static class MetaFinanceira
     {
         var group = builder.MapGroup("/api/MetasFinanceiras");
 
-        // GET /api/MetasFinanceiras — Listar todas as metas do usuário
-        group.MapGet("/", async (IMetaFinanceiraService service) =>
+        // GET /api/MetasFinanceiras — Listar todas as metas do usuário (?arquivadas=true|false; omitido = todas)
+        group.MapGet("/", async (IMetaFinanceiraService service, string? arquivadas) =>
         {
-            var result = await service.ObterTodas();
+            var filtroArquivadas = ParseArquivadas(arquivadas);
+            var result = await service.ObterTodas(filtroArquivadas);
             return Results.Ok(result);
         });
 
-        // GET /api/MetasFinanceiras/resumo — Painel de resumo (3 cards)
-        group.MapGet("/resumo", async (IMetaFinanceiraService service) =>
+        // GET /api/MetasFinanceiras/resumo — Painel de resumo (3 cards); segue o mesmo filtro ?arquivadas da listagem
+        group.MapGet("/resumo", async (IMetaFinanceiraService service, string? arquivadas) =>
         {
-            var result = await service.ObterResumo();
+            var filtroArquivadas = ParseArquivadas(arquivadas);
+            var result = await service.ObterResumo(filtroArquivadas);
             return Results.Ok(result);
         });
 
@@ -82,6 +84,33 @@ public static class MetaFinanceira
             return result.MapResult();
         });
 
+        // POST /api/MetasFinanceiras/{id}/arquivar — Arquivar meta (em andamento ou concluída)
+        group.MapPost("/{id:length(24)}/arquivar", async (
+            string id,
+            IMetaFinanceiraService service) =>
+        {
+            var result = await service.Arquivar(id);
+            return result.MapResult();
+        });
+
+        // POST /api/MetasFinanceiras/{id}/desarquivar — Retirar meta do arquivo
+        group.MapPost("/{id:length(24)}/desarquivar", async (
+            string id,
+            IMetaFinanceiraService service) =>
+        {
+            var result = await service.Desarquivar(id);
+            return result.MapResult();
+        });
+
         return group;
+    }
+
+    /// <summary>
+    /// Interpreta o parâmetro de query ?arquivadas=true|false.
+    /// Valor ausente ou inválido é tratado como null (retorna todas as metas).
+    /// </summary>
+    private static bool? ParseArquivadas(string? arquivadas)
+    {
+        return bool.TryParse(arquivadas, out var valor) ? valor : null;
     }
 }

@@ -11,6 +11,7 @@ public class MetaFinanceira : EntityBase
     public CategoriaIconeMeta Categoria { get; private set; }
     public string UsuarioId { get; private set; }
     public DateTime DataCriacao { get; private set; }
+    public bool Arquivada { get; private set; }
     public List<Contribuicao> Contribuicoes { get; private set; } = new();
 
     // Campos calculados (não persistidos, preenchidos no Service/DTO)
@@ -40,6 +41,16 @@ public class MetaFinanceira : EntityBase
         DataLimite = dataLimite;
         Categoria = categoria;
         ValidarDados();
+    }
+
+    public void Arquivar()
+    {
+        Arquivada = true;
+    }
+
+    public void Desarquivar()
+    {
+        Arquivada = false;
     }
 
     public NotificacaoMeta? AdicionarContribuicao(decimal valor, DateTime data,

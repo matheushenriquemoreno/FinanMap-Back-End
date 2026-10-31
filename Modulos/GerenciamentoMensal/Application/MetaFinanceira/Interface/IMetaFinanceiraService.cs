@@ -8,8 +8,10 @@ public interface IMetaFinanceiraService
     Task<Result<ResultMetaFinanceiraDTO>> Atualizar(UpdateMetaFinanceiraDTO dto);
     Task<Result> Excluir(string id);
     Task<Result<ResultMetaFinanceiraDTO>> ObterPeloID(string id);
-    Task<List<ResultMetaFinanceiraDTO>> ObterTodas();
-    Task<ResumoMetasDTO> ObterResumo();
+    Task<List<ResultMetaFinanceiraDTO>> ObterTodas(bool? arquivadas = null);
+    Task<ResumoMetasDTO> ObterResumo(bool? arquivadas = null);
+    Task<Result> Arquivar(string id);
+    Task<Result> Desarquivar(string id);
     Task<Result<ResultContribuicaoDTO>> AdicionarContribuicao(string metaId, ContribuicaoDTO dto);
     Task<Result<ResultContribuicaoDTO>> EditarContribuicao(string metaId, UpdateContribuicaoDTO dto);
     Task<Result> RemoverContribuicao(string metaId, string contribuicaoId);

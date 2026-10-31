@@ -16,10 +16,20 @@ public class MetaFinanceiraRepository : RepositoryMongoBase<Domain.Entity.MetaFi
         return "MetaFinanceira";
     }
 
-    public async Task<List<Domain.Entity.MetaFinanceira>> ObterPorUsuario(string usuarioId)
+    /// <summary>
+    /// Obtém as metas do usuário. Quando <paramref name="arquivadas"/> for informado,
+    /// filtra por estado de arquivamento (true = só arquivadas, false = só ativas);
+    /// quando null, retorna todas.
+    /// </summary>
+    public async Task<List<Domain.Entity.MetaFinanceira>> ObterPorUsuario(string usuarioId, bool? arquivadas = null)
     {
+        var filtro = Builders<Domain.Entity.MetaFinanceira>.Filter.Eq(m => m.UsuarioId, usuarioId);
+
+        if (arquivadas.HasValue)
+            filtro &= Builders<Domain.Entity.MetaFinanceira>.Filter.Eq(m => m.Arquivada, arquivadas.Value);
+
         return await _entityCollection
-            .Find(Builders<Domain.Entity.MetaFinanceira>.Filter.Eq(m => m.UsuarioId, usuarioId))
+            .Find(filtro)
             .ToListAsync();
     }
 }

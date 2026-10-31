@@ -1,10 +1,16 @@
 using System.Linq.Expressions;
+using System.Reflection;
+using Application.MetaFinanceira.DTOs;
 using Application.MetaFinanceira.Service;
 using Domain.Compartilhamento.Entity;
 using Domain.Entity;
 using Domain.Login.Interfaces;
 using Domain.MetaFinanceira.Repository;
 using Domain.Repository;
+using Infra.Data.Mongo.Repositorys;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
+using MongoDB.Driver;
 using Xunit;
 
 namespace Tests;
@@ -162,6 +168,96 @@ public class MetaFinanceiraArquivamentoTests
         Assert.Equal(100m, soArquivadas.PercentualGeral);
         Assert.Equal(1, soArquivadas.MetasConcluidas);
         Assert.Equal(1, soArquivadas.TotalDeMetasAtivas);
+    }
+
+    [Fact]
+    public async Task AdicionarContribuicao_EmMetaArquivada_RetornaFalhaDeValidacao()
+    {
+        var meta = CriarMeta("meta-1", 100m);
+        meta.Arquivar();
+        var repositorio = new MetaFinanceiraArquivamentoRepository(meta);
+        var service = CriarService(repositorio);
+
+        var resultado = await service.AdicionarContribuicao("meta-1", new ContribuicaoDTO
+        {
+            Valor = 25m,
+            Data = DateTime.Today,
+            Descricao = "Aporte após arquivamento"
+        });
+
+        Assert.True(resultado.IsFailure);
+        Assert.Equal(TypeError.Validation, resultado.Error.GetType());
+        Assert.Equal("Não é possível registrar contribuição em uma meta arquivada.", resultado.Error.Message);
+        Assert.Equal(0m, meta.ValorAtual);
+        Assert.Empty(meta.Contribuicoes);
+    }
+
+    [Fact]
+    public void FiltroSomentoAtivas_ToleraMetasAntigasSemCampoArquivada()
+    {
+        // O fake em memória não consegue representar um documento sem o campo Arquivada
+        // (a entidade é bool não anulável). Por isso representamos o caso do deploy —
+        // metas antigas sem o campo — validando o filtro Mongo renderizado:
+        // o documento do filtro não pode usar Eq(false), que não casa campo ausente.
+        var filtro = MetaFinanceiraRepository.ConstruirFiltroObterPorUsuario("usuario-1", arquivadas: false);
+        var documento = RenderizarFiltro(filtro);
+
+        Assert.Equal(BsonBoolean.True, documento["Arquivada"]["$ne"]);
+        Assert.NotEqual(BsonBoolean.False, documento["Arquivada"]);
+    }
+
+    [Fact]
+    public void FiltroSomentoArquivadas_ExigeArquivadaTrue()
+    {
+        // Documentos antigos nunca foram arquivados: Eq(true) os exclui corretamente.
+        var filtro = MetaFinanceiraRepository.ConstruirFiltroObterPorUsuario("usuario-1", arquivadas: true);
+        var documento = RenderizarFiltro(filtro);
+
+        Assert.Equal(BsonBoolean.True, documento["Arquivada"]);
+    }
+
+    [Fact]
+    public void FiltroSemParametroArquivadas_NaoRestringeArquivamento()
+    {
+        var filtro = MetaFinanceiraRepository.ConstruirFiltroObterPorUsuario("usuario-1", arquivadas: null);
+        var documento = RenderizarFiltro(filtro);
+
+        Assert.False(documento.Contains("Arquivada"));
+    }
+
+    [Fact]
+    public void ParseArquivadas_ComValorInvalido_TratadoComoSemFiltro()
+    {
+        // Teste do parser de query da listagem via reflexão (método private no WebApi).
+        var metodo = typeof(WebApi.Controllers.MetaFinanceira)
+            .GetMethod("ParseArquivadas", BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(metodo);
+
+        foreach (var valor in new[] { "abc", "", null })
+        {
+            var resultado = metodo!.Invoke(null, [valor]);
+            Assert.Null(resultado);
+        }
+    }
+
+    [Fact]
+    public void ParseArquivadas_ComValoresValidos_Booleanos()
+    {
+        var metodo = typeof(WebApi.Controllers.MetaFinanceira)
+            .GetMethod("ParseArquivadas", BindingFlags.NonPublic | BindingFlags.Static);
+
+        Assert.NotNull(metodo);
+
+        Assert.True((bool?)metodo!.Invoke(null, ["true"]));
+        Assert.False((bool?)metodo!.Invoke(null, ["false"]));
+    }
+
+    private static BsonDocument RenderizarFiltro(FilterDefinition<Domain.Entity.MetaFinanceira> filtro)
+    {
+        var serializadores = BsonSerializer.SerializerRegistry;
+        var serializer = serializadores.GetSerializer<Domain.Entity.MetaFinanceira>();
+        return filtro.Render(new RenderArgs<Domain.Entity.MetaFinanceira>(serializer, serializadores)).AsBsonDocument;
     }
 
     private static MetaFinanceiraService CriarService(

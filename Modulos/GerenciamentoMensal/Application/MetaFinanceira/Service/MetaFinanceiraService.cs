@@ -146,6 +146,10 @@ public class MetaFinanceiraService : IMetaFinanceiraService
         if (meta == null)
             return Result.Failure<ResultContribuicaoDTO>(Error.NotFound("Meta financeira não encontrada."));
 
+        if (meta.Arquivada)
+            return Result.Failure<ResultContribuicaoDTO>(
+                Error.Validation("Não é possível registrar contribuição em uma meta arquivada."));
+
         var notificacao = meta.AdicionarContribuicao(dto.Valor, dto.Data, dto.Descricao, dto.InvestimentoId, dto.NomeInvestimento);
 
         await _repository.Update(meta);

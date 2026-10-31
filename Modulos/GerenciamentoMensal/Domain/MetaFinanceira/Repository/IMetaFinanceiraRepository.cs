@@ -5,5 +5,5 @@ namespace Domain.MetaFinanceira.Repository;
 
 public interface IMetaFinanceiraRepository : IRepositoryBase<Entity.MetaFinanceira>
 {
-    Task<List<Entity.MetaFinanceira>> ObterPorUsuario(string usuarioId);
+    Task<List<Entity.MetaFinanceira>> ObterPorUsuario(string usuarioId, bool? arquivadas = null);
 }

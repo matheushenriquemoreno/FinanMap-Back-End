@@ -78,9 +78,9 @@ public class MetaFinanceiraService : IMetaFinanceiraService
         return Result.Success(MapearParaDTO(meta));
     }
 
-    public async Task<List<ResultMetaFinanceiraDTO>> ObterTodas()
+    public async Task<List<ResultMetaFinanceiraDTO>> ObterTodas(bool? arquivadas = null)
     {
-        var metas = await _repository.ObterPorUsuario(_usuarioLogado.IdContextoDados);
+        var metas = await _repository.ObterPorUsuario(_usuarioLogado.IdContextoDados, arquivadas);
         return metas
             .OrderBy(m => m.Concluida)
             .ThenByDescending(m => m.DataCriacao)
@@ -88,9 +88,11 @@ public class MetaFinanceiraService : IMetaFinanceiraService
             .ToList();
     }
 
-    public async Task<ResumoMetasDTO> ObterResumo()
+    public async Task<ResumoMetasDTO> ObterResumo(bool? arquivadas = null)
     {
-        var metas = await _repository.ObterPorUsuario(_usuarioLogado.IdContextoDados);
+        // O resumo segue o mesmo filtro da listagem: as contagens refletem
+        // somente as metas do conjunto filtrado.
+        var metas = await _repository.ObterPorUsuario(_usuarioLogado.IdContextoDados, arquivadas);
 
         return new ResumoMetasDTO
         {
@@ -104,6 +106,36 @@ public class MetaFinanceiraService : IMetaFinanceiraService
         };
     }
 
+    public async Task<Result> Arquivar(string id)
+    {
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
+        var meta = await _repository.GetById(id);
+        if (meta == null)
+            return Result.Failure(Error.NotFound("Meta financeira não encontrada."));
+
+        meta.Arquivar();
+        await _repository.Update(meta);
+
+        return Result.Success();
+    }
+
+    public async Task<Result> Desarquivar(string id)
+    {
+        if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
+            return Result.Failure(Error.Forbidden("Você não tem permissão para editar os dados deste usuário."));
+
+        var meta = await _repository.GetById(id);
+        if (meta == null)
+            return Result.Failure(Error.NotFound("Meta financeira não encontrada."));
+
+        meta.Desarquivar();
+        await _repository.Update(meta);
+
+        return Result.Success();
+    }
+
     public async Task<Result<ResultContribuicaoDTO>> AdicionarContribuicao(string metaId, ContribuicaoDTO dto)
     {
         if (_usuarioLogado.EmModoCompartilhado && _usuarioLogado.PermissaoAtual != NivelPermissao.Editar)
@@ -113,6 +145,10 @@ public class MetaFinanceiraService : IMetaFinanceiraService
         var meta = await _repository.GetById(metaId);
         if (meta == null)
             return Result.Failure<ResultContribuicaoDTO>(Error.NotFound("Meta financeira não encontrada."));
+
+        if (meta.Arquivada)
+            return Result.Failure<ResultContribuicaoDTO>(
+                Error.Validation("Não é possível registrar contribuição em uma meta arquivada."));
 
         var notificacao = meta.AdicionarContribuicao(dto.Valor, dto.Data, dto.Descricao, dto.InvestimentoId, dto.NomeInvestimento);
 
@@ -192,6 +228,7 @@ public class MetaFinanceiraService : IMetaFinanceiraService
             ValorAtual = meta.ValorAtual,
             PercentualProgresso = Math.Round(meta.PercentualProgresso, 1),
             Concluida = meta.Concluida,
+            Arquivada = meta.Arquivada,
             DiasRestantes = Math.Max(0, (meta.DataLimite - DateTime.Today).Days),
             ValorFaltante = Math.Max(0, meta.ValorAlvo - meta.ValorAtual),
             Contribuicoes = meta.Contribuicoes

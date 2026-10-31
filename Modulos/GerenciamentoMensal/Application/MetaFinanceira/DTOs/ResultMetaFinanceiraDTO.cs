@@ -13,6 +13,7 @@ public class ResultMetaFinanceiraDTO
     public decimal ValorAtual { get; set; }
     public decimal PercentualProgresso { get; set; }
     public bool Concluida { get; set; }
+    public bool Arquivada { get; set; }
     public int DiasRestantes { get; set; }
     public decimal ValorFaltante { get; set; }
     public List<ContribuicaoResultDTO> Contribuicoes { get; set; } = new();
